@@ -1480,7 +1480,7 @@ class PolygonROI(BaseROI):
     _ndim = 2
 
     def __init__(self, vertices=None):
-        super(PolygonROI, self).__init__()
+        super().__init__()
         if vertices:
             self.set_vertices(vertices)
 
