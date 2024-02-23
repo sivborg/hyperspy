@@ -51,7 +51,7 @@ jobs:
             PYTHON_VERSION: '3.8'
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v3
         name: Install Python
@@ -93,7 +93,7 @@ jobs:
       LATEX_DEPS: dvipng latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ericpre/sphinx-action@latest_sphinx
         with:
