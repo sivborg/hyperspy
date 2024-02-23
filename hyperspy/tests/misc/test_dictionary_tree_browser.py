@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -27,7 +27,6 @@ from hyperspy.misc.utils import (
     replace_html_symbols,
     nested_dictionary_merge,
 )
-from hyperspy.exceptions import VisibleDeprecationWarning
 from hyperspy.signal import BaseSignal
 
 
@@ -80,9 +79,27 @@ class TestDictionaryBrowser:
             "Node3": {"leaf31": 31},
         } == tree.as_dictionary()
         tree.add_dictionary({"_double_lines": ""}, double_lines=True)
-        assert tree._double_lines == True
+        assert tree._double_lines is True
         tree.add_dictionary({"_double_lines": ""}, double_lines=False)
-        assert tree._double_lines == False
+        assert tree._double_lines is False
+
+    def test_setattr_dictionary(self, tree):
+        d = {"leaf13": 13}
+        tree.Node1 = d
+        assert tree.Node1.as_dictionary() == d
+
+    def test_set_item_dictionary(self, tree):
+        d = {"leaf111": 222}
+        tree.set_item("Node1.Node11", d)
+        assert tree.Node1.Node11.as_dictionary() == d
+
+        d1 = {"Node111": {"leaf1111": 1111}}
+        tree.Node1.Node11.add_dictionary(d1)
+        assert tree.Node1.Node11.as_dictionary() == {**d, **d1}
+
+        d2 = {"leaf111": 333}
+        tree.set_item("Node1.Node11", d2)
+        assert tree.Node1.Node11.as_dictionary() == d2
 
     def test_deepcopy(self, tree):
         a = tree.deepcopy()
@@ -258,30 +275,30 @@ class TestDictionaryBrowser:
         assert tree.get_item(".Node1.Node21.leaf311", 44) == 44
 
     def test_has_nested_item(self, tree):
-        assert tree.has_item("leaf11", full_path=False) == True
-        assert tree.has_item("leaf111", full_path=False) == True
-        assert tree.has_item("leaf211", full_path=False) == True
-        assert tree.has_item("leaf333", full_path=False) == False
-        assert tree.has_item("211", full_path=False, wild=True) == True
-        assert tree.has_item("333", full_path=False, wild=True) == False
+        assert tree.has_item("leaf11", full_path=False) is True
+        assert tree.has_item("leaf111", full_path=False) is True
+        assert tree.has_item("leaf211", full_path=False) is True
+        assert tree.has_item("leaf333", full_path=False) is False
+        assert tree.has_item("211", full_path=False, wild=True) is True
+        assert tree.has_item("333", full_path=False, wild=True) is False
         tree.add_dictionary(
             {
                 "_double_lines": False,
             }
         )
-        assert tree.has_item("leaf211", full_path=False) == True
-        assert tree.has_item("Node11.leaf111", full_path=False) == True
-        assert tree.has_item("Node41.leaf111", full_path=False) == False
+        assert tree.has_item("leaf211", full_path=False) is True
+        assert tree.has_item("Node11.leaf111", full_path=False) is True
+        assert tree.has_item("Node41.leaf111", full_path=False) is False
 
     def test_has_nested_item_path(self, tree):
-        assert tree.has_item("leaf333", full_path=False, return_path=True) == None
-        assert tree.has_item("leaf", full_path=False, return_path=True) == None
+        assert tree.has_item("leaf333", full_path=False, return_path=True) is None
+        assert tree.has_item("leaf", full_path=False, return_path=True) is None
         assert (
             tree.has_item("leaf333", full_path=False, return_path=True, default=[])
             == []
         )
         assert (
-            tree.has_item("333", full_path=False, return_path=True, wild=True) == None
+            tree.has_item("333", full_path=False, return_path=True, wild=True) is None
         )
         assert (
             tree.has_item(
@@ -316,7 +333,7 @@ class TestDictionaryBrowser:
             == "Node1.Node11.leaf111"
         )
         assert (
-            tree.has_item("Node41.leaf111", full_path=False, return_path=True) == None
+            tree.has_item("Node41.leaf111", full_path=False, return_path=True) is None
         )
         assert (
             tree.has_item(
@@ -335,14 +352,14 @@ class TestDictionaryBrowser:
         ]
 
     def test_get_nested_item(self, tree):
-        assert tree.get_item("leaf333", full_path=False) == None
-        assert tree.get_item("leaf", full_path=False) == None
+        assert tree.get_item("leaf333", full_path=False) is None
+        assert tree.get_item("leaf", full_path=False) is None
         assert tree.get_item("leaf333", full_path=False, default=[]) == []
         assert tree.get_item("333", full_path=False, return_path=True, default=[]) == []
-        assert tree.get_item("333", full_path=False, wild=True) == None
+        assert tree.get_item("333", full_path=False, wild=True) is None
         assert tree.get_item("333", full_path=False, wild=True, default=[]) == []
         assert (
-            tree.get_item("333", full_path=False, wild=True, return_path=True) == None
+            tree.get_item("333", full_path=False, wild=True, return_path=True) is None
         )
         assert tree.get_item("333", full_path=False, return_path=True, default=[]) == []
         assert (
@@ -356,7 +373,7 @@ class TestDictionaryBrowser:
         assert tree.get_item("leaf211", full_path=False, default=[]) == 211
         assert tree.get_item("211", full_path=False, wild=True) == 211
         assert tree.get_item("Node11.leaf111", full_path=False) == 111
-        assert tree.get_item("Node41.leaf111", full_path=False) == None
+        assert tree.get_item("Node41.leaf111", full_path=False) is None
         assert tree.get_item("Node41.leaf111", full_path=False, default=[]) == []
         assert tree.get_item("leaf211", full_path=False, return_path=True) == (
             211,
@@ -370,7 +387,7 @@ class TestDictionaryBrowser:
             "Node1.Node11.leaf111",
         )
         assert (
-            tree.get_item("Node41.leaf111", full_path=False, return_path=True) == None
+            tree.get_item("Node41.leaf111", full_path=False, return_path=True) is None
         )
         assert (
             tree.get_item(
@@ -394,11 +411,6 @@ class TestDictionaryBrowser:
             [211, 31],
             ["Node2.Node21.leaf211", "Node3.leaf211"],
         )
-
-    # Can be removed once metadata.Signal.binned is deprecated in v2.0
-    def test_set_item_binned(self, tree):
-        with pytest.warns(VisibleDeprecationWarning, match="Use of the `binned`"):
-            tree.set_item("Signal.binned", True)
 
     def test_html(self, tree):
         "Test that the method actually runs"
@@ -458,12 +470,12 @@ def test_check_long_string():
     max_len = 20
     value = "Hello everyone this is a long string"
     truth, shortened = check_long_string(value, max_len)
-    assert truth == False
+    assert truth is False
     assert shortened == "Hello everyone this is a long string"
 
     value = "No! It was not a long string! This is a long string!"
     truth, shortened = check_long_string(value, max_len)
-    assert truth == True
+    assert truth is True
     assert shortened == "No! It was not a lon ... is is a long string!"
 
 
@@ -479,9 +491,7 @@ def test_add_key_value():
 
     string = """<ul style="margin: 0px; list-style-position: outside;">
         <li style='margin-left:1em; padding-left: 0.5em'>{} = {}</li></ul>
-        """.format(
-        replace_html_symbols(key), replace_html_symbols(value)
-    )
+        """.format(replace_html_symbols(key), replace_html_symbols(value))
 
     assert (
         string

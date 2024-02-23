@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -18,9 +18,8 @@
 
 import logging
 from multiprocessing import cpu_count
-import warnings
 
-import dill
+import cloudpickle
 import numpy as np
 
 from hyperspy.misc.utils import DictionaryTreeBrowser
@@ -37,7 +36,6 @@ _logger = logging.getLogger(__name__)
 
 
 class StrategyList(list):
-
     def __init__(self, samf):
         super(StrategyList, self).__init__()
         self.samf = samf
@@ -57,15 +55,15 @@ class StrategyList(list):
         list.remove(self, thing)
 
     def __repr__(self):
-        signature = u"%3s | %4s | %s"
+        signature = "%3s | %4s | %s"
         ans = signature % ("A", "#", "Strategy")
-        ans += u"\n"
-        ans += signature % (u'-' * 2, u'-' * 4, u'-' * 25)
+        ans += "\n"
+        ans += signature % ("-" * 2, "-" * 4, "-" * 25)
         if self:
             for n, s in enumerate(self):
-                ans += u"\n"
+                ans += "\n"
                 name = repr(s)
-                a = u" x" if self.samf._active_strategy_ind == n else u""
+                a = " x" if self.samf._active_strategy_ind == n else ""
                 ans += signature % (a, str(n), name)
         return ans
 
@@ -85,16 +83,16 @@ class Samfire:
 
     Attributes
     ----------
-    model : Model instance
+    model : :class:`hyperspy.model.BaseModel` (or subclass)
         The complete model
     optional_components : list
         A list of components that can be switched off at some pixels if it
         returns a better Akaike's Information Criterion with correction (AICc)
     workers : int
         A number of processes that will perform the fitting parallely
-    pool : samfire_pool instance
+    pool : :class:`~.api.samfire.SamfirePool`
         A proxy object that manages either multiprocessing or ipyparallel pool
-    strategies : strategy list
+    strategies : list
         A list of strategies that will be used to select pixel fitting order
         and calculate required starting parameters. Strategies come in two
         "flavours" - local and global. Local strategies spread the starting
@@ -102,7 +100,7 @@ class Samfire:
         Global strategies look for clusters in parameter values, and suggests
         most frequent values. Global strategy do not depend on pixel fitting
         order, hence it is randomised.
-    metadata : dictionary
+    metadata : dict
         A dictionary for important samfire parameters
     active_strategy : strategy
         The currently active strategy from the strategies list
@@ -115,7 +113,7 @@ class Samfire:
     save_every : int
         When running, samfire saves results every time save_every good fits are
         found.
-    random_state : None or int or RandomState instance, default None
+    random_state : None or int or numpy.random.Generator, default None
         Random seed used to select the next pixels.
 
     """
@@ -145,8 +143,8 @@ class Samfire:
         #  0 -> bad fit/no info
         # >0 -> select when turn comes
 
-        self.metadata.add_node('marker')
-        self.metadata.add_node('goodness_test')
+        self.metadata.add_node("marker")
+        self.metadata.add_node("goodness_test")
 
         marker = np.empty(self.model.axes_manager.navigation_shape[::-1])
         marker.fill(self._scale)
@@ -158,9 +156,11 @@ class Samfire:
         self._active_strategy_ind = 0
         self.update_every = max(10, workers * 2)  # some sensible number....
         from hyperspy.samfire_utils.fit_tests import red_chisq_test
+
         self.metadata.goodness_test = red_chisq_test(tolerance=1.0)
         self.metadata._gt_dump = None
         from hyperspy.samfire_utils.samfire_kernel import single_kernel
+
         self.single_kernel = single_kernel
         self._workers = workers
         if len(kwargs) or setup:
@@ -171,17 +171,6 @@ class Samfire:
     @property
     def metadata(self):
         return self._metadata
-
-    @metadata.setter
-    def metadata(self, d):
-        warnings.warn(
-            "Setting the `metadata` attribute is deprecated and will be removed "
-            "in HyperSpy 2.0. Use the `set_item` and `add_dictionary` methods "
-            "of the `metadata` attribute instead."
-            )
-        if isinstance(d, dict):
-            d = DictionaryTreeBrowser(d)
-        self._metadata = d
 
     @property
     def active_strategy(self):
@@ -194,19 +183,20 @@ class Samfire:
     def _setup(self, **kwargs):
         """Set up SAMFire - configure models, set up pool if necessary"""
         from hyperspy.samfire_utils.samfire_pool import SamfirePool
+
         self._figure = None
-        self.metadata._gt_dump = dill.dumps(self.metadata.goodness_test)
+        self.metadata._gt_dump = cloudpickle.dumps(self.metadata.goodness_test)
         self._enable_optional_components()
 
-        if hasattr(self.model, '_suspend_auto_fine_structure_width'):
+        if hasattr(self.model, "_suspend_auto_fine_structure_width"):
             self.model._suspend_auto_fine_structure_width = True
 
-        if hasattr(self, '_log'):
+        if hasattr(self, "_log"):
             self._log = []
 
         if self._workers and self.pool is None:
-            if 'num_workers' not in kwargs:
-                kwargs['num_workers'] = self._workers
+            if "num_workers" not in kwargs:
+                kwargs["num_workers"] = self._workers
             if self.pool is None:
                 self.pool = SamfirePool(**kwargs)
             self._workers = self.pool.num_workers
@@ -219,16 +209,15 @@ class Samfire:
         ----------
         **kwargs : dict
             Any keyword arguments to be passed to
-            :py:meth:`~.model.BaseModel.fit`
+            :meth:`~.model.BaseModel.fit`
         """
         self._setup()
         if self._workers and self.pool is not None:
             self.pool.update_parameters()
-        if 'min_function' in kwargs:
-            kwargs['min_function'] = dill.dumps(kwargs['min_function'])
-        if 'min_function_grad' in kwargs:
-            kwargs['min_function_grad'] = dill.dumps(
-                kwargs['min_function_grad'])
+        if "min_function" in kwargs:
+            kwargs["min_function"] = cloudpickle.dumps(kwargs["min_function"])
+        if "min_function_grad" in kwargs:
+            kwargs["min_function_grad"] = cloudpickle.dumps(kwargs["min_function_grad"])
         self._args = kwargs
         num_of_strat = len(self.strategies)
         total_size = self.model.axes_manager.navigation_size - self.pixels_done
@@ -246,8 +235,7 @@ class Samfire:
                 self.change_strategy(self._active_strategy_ind + 1)
         except KeyboardInterrupt:  # pragma: no cover
             if self.pool is not None:
-                _logger.warning(
-                    'Collecting already started pixels, please wait')
+                _logger.warning("Collecting already started pixels, please wait")
                 self.pool.collect_results()
 
     def append(self, strategy):
@@ -255,7 +243,8 @@ class Samfire:
 
         Parameters
         ----------
-        strategy : strategy instance
+        strategy : strategy
+            The samfire strategy to use
         """
         self.strategies.append(strategy)
 
@@ -264,16 +253,17 @@ class Samfire:
 
         Parameters
         ----------
-        iterable : an iterable of strategy instances
+        iterable : iterable of strategy
+            The samfire strategies to use.
         """
         self.strategies.extend(iterable)
 
     def remove(self, thing):
-        """removes given strategy from the strategies list
+        """Remove given strategy from the strategies list
 
         Parameters
         ----------
-        thing : int or strategy instance
+        thing : int or strategy
             Strategy that is in current strategies list or its index.
         """
         self.strategies.remove(thing)
@@ -298,7 +288,7 @@ class Samfire:
         """Returns the number of pixels that are left to solve. This number can
         increase as SAMFire learns more information about the data.
         """
-        return np.sum(self.metadata.marker > 0.)
+        return np.sum(self.metadata.marker > 0.0)
 
     @property
     def pixels_done(self):
@@ -311,12 +301,14 @@ class Samfire:
             ind = self._next_pixels(1)[0]
             vals = self.active_strategy.values(ind)
             self.running_pixels.append(ind)
-            isgood = self.single_kernel(self.model,
-                                        ind,
-                                        vals,
-                                        self.optional_components,
-                                        self._args,
-                                        self.metadata.goodness_test)
+            isgood = self.single_kernel(
+                self.model,
+                ind,
+                vals,
+                self.optional_components,
+                self._args,
+                self.metadata.goodness_test,
+            )
             self.running_pixels.remove(ind)
             self.count += 1
             if isgood:
@@ -330,20 +322,19 @@ class Samfire:
 
         Parameters
         ----------
-        filename : {str, None}
+        filename : str, None, default None
             the filename. If None, a default value of ``backup_`` + signal_title
             is used.
-        on_count : bool
-            if True (default), only saves on the required count of steps
+        on_count : bool, default True
+            if True, only saves on the required count of steps
         """
         if filename is None:
             title = self.model.signal.metadata.General.title
-            filename = slugify('backup_' + title)
+            filename = slugify("backup_" + title)
         # maybe add saving marker + strategies as well?
         if self.count % self.save_every == 0 or not on_count:
-            self.model.save(filename,
-                            name='samfire_backup', overwrite=True)
-            self.model.signal.models.remove('samfire_backup')
+            self.model.save(filename, name="samfire_backup", overwrite=True)
+            self.model.signal.models.remove("samfire_backup")
 
     def update(self, ind, results=None, isgood=None):
         """Updates the current model with the results, received from the
@@ -353,12 +344,12 @@ class Samfire:
         ----------
         ind : tuple
             contains the index of the pixel of the results
-        results : {dict, None}
+        results : dict or None, default None
             dictionary of the results. If None, means we are updating in-place
-            (e.g. refreshing the marker or strategies)
-        isgood : {bool, None}
+            (e.g. refreshing the marker or strategies).
+        isgood : bool or None, default None
             if it is known if the results are good according to the
-            goodness-of-fit test. If None, the pixel is tested
+            goodness-of-fit test. If None, the pixel is tested.
         """
         if results is not None and (isgood is None or isgood):
             self._swap_dict_and_model(ind, results)
@@ -385,8 +376,8 @@ class Samfire:
         calculated_pixels = np.logical_not(np.isnan(self.model.red_chisq.data))
         # only include pixels that are good enough
         calculated_pixels = self.metadata.goodness_test.map(
-            self.model,
-            calculated_pixels)
+            self.model, calculated_pixels
+        )
 
         self.active_strategy.refresh(True, calculated_pixels)
 
@@ -398,17 +389,17 @@ class Samfire:
 
         Parameters
         ----------
-        new_strat : {int | strategy}
+        new_strat : int or strategy
             index of the new strategy from the strategies list or the
             strategy object itself
         """
         from numbers import Number
+
         if not isinstance(new_strat, Number):
             try:
                 new_strat = self.strategies.index(new_strat)
             except ValueError:
-                raise ValueError(
-                    "The passed object is not in current strategies list")
+                raise ValueError("The passed object is not in current strategies list")
 
         new_strat = abs(int(new_strat))
         if new_strat == self._active_strategy_ind:
@@ -418,23 +409,21 @@ class Samfire:
 
         # TODO: make sure it's a number. Get index if object is passed?
         if new_strat >= len(self.strategies):
-            raise ValueError('too big new strategy index')
+            raise ValueError("too big new strategy index")
 
         current = self.active_strategy
         new = self.strategies[new_strat]
 
-        if isinstance(current, LocalStrategy) and isinstance(
-                new, LocalStrategy):
+        if isinstance(current, LocalStrategy) and isinstance(new, LocalStrategy):
             # forget ignore/done levels, keep just calculated or not
             new.refresh(True)
         else:
-            if isinstance(current, LocalStrategy) and isinstance(
-                    new, GlobalStrategy):
+            if isinstance(current, LocalStrategy) and isinstance(new, GlobalStrategy):
                 # if diffusion->segmenter, set previous -1 to -2 (ignored for
                 # the next diffusion)
                 self.metadata.marker[
-                    self.metadata.marker == -
-                    self._scale] -= self._scale
+                    self.metadata.marker == -self._scale
+                ] -= self._scale
 
             new.refresh(False)
         current.clean()
@@ -448,7 +437,7 @@ class Samfire:
 
         Parameters
         ----------
-        need_inds: int
+        need_inds : int
             the number of pixels to be returned in the generator
         """
         if need_inds:
@@ -456,27 +445,27 @@ class Samfire:
             for ind in self._next_pixels(need_inds):
                 # get starting parameters / array of possible values
                 value_dict = self.active_strategy.values(ind)
-                value_dict['fitting_kwargs'] = self._args
-                value_dict['signal.data'] = \
-                    self.model.signal.data[ind + (...,)]
+                value_dict["fitting_kwargs"] = self._args
+                value_dict["signal.data"] = self.model.signal.data[ind + (...,)]
                 if self.model.signal._lazy:
-                    value_dict['signal.data'] = value_dict[
-                        'signal.data'].compute()
+                    value_dict["signal.data"] = value_dict["signal.data"].compute()
                 if self.model.signal.metadata.has_item(
-                        'Signal.Noise_properties.variance'):
+                    "Signal.Noise_properties.variance"
+                ):
                     var = self.model.signal.metadata.Signal.Noise_properties.variance
                     if isinstance(var, BaseSignal):
                         dat = var.data[ind + (...,)]
-                        value_dict['variance.data'] = dat.compute(
-                        ) if var._lazy else dat
-                if hasattr(self.model,
-                           'low_loss') and self.model.low_loss is not None:
+                        value_dict["variance.data"] = (
+                            dat.compute() if var._lazy else dat
+                        )
+                if hasattr(self.model, "low_loss") and self.model.low_loss is not None:
                     dat = self.model.low_loss.data[ind + (...,)]
-                    value_dict['low_loss.data'] = dat.compute(
-                    ) if self.model.low_loss._lazy else dat
+                    value_dict["low_loss.data"] = (
+                        dat.compute() if self.model.low_loss._lazy else dat
+                    )
 
                 self.running_pixels.append(ind)
-                self.metadata.marker[ind] = 0.
+                self.metadata.marker[ind] = 0.0
                 yield ind, value_dict
 
     def _next_pixels(self, number):
@@ -485,7 +474,7 @@ class Samfire:
         if best > 0.0:
             ind_list = np.where(self.metadata.marker == best)
             while number and ind_list[0].size > 0:
-                i = self.random_state.randint(len(ind_list[0]))
+                i = self.random_state.integers(len(ind_list[0]))
                 ind = tuple([lst[i] for lst in ind_list])
                 if ind not in self.running_pixels:
                     inds.append(ind)
@@ -496,14 +485,16 @@ class Samfire:
 
     def _swap_dict_and_model(self, m_ind, dict_, d_ind=None):
         if d_ind is None:
-            d_ind = tuple([0 for _ in dict_['dof.data'].shape])
+            d_ind = tuple([0 for _ in dict_["dof.data"].shape])
         m = self.model
         for k in dict_.keys():
-            if k.endswith('.data'):
+            if k.endswith(".data"):
                 item = k[:-5]
-                getattr(m, item).data[m_ind], dict_[k] = \
-                    dict_[k].copy(), getattr(m, item).data[m_ind].copy()
-        for comp_name, comp in dict_['components'].items():
+                getattr(m, item).data[m_ind], dict_[k] = (
+                    dict_[k].copy(),
+                    getattr(m, item).data[m_ind].copy(),
+                )
+        for comp_name, comp in dict_["components"].items():
             # only active components are sent
             if self.model[comp_name].active_is_multidimensional:
                 self.model[comp_name]._active_array[m_ind] = True
@@ -511,12 +502,14 @@ class Samfire:
 
             for param_model in self.model[comp_name].parameters:
                 param_dict = comp[param_model.name]
-                param_model.map[m_ind], param_dict[d_ind] = \
-                    param_dict[d_ind].copy(), param_model.map[m_ind].copy()
+                param_model.map[m_ind], param_dict[d_ind] = (
+                    param_dict[d_ind].copy(),
+                    param_model.map[m_ind].copy(),
+                )
 
         for component in self.model:
             # switch off all that did not appear in the dictionary
-            if component.name not in dict_['components'].keys():
+            if component.name not in dict_["components"].keys():
                 if component.active_is_multidimensional:
                     component._active_array[m_ind] = False
 
@@ -527,8 +520,7 @@ class Samfire:
             comp = self.model._get_component(c)
             if not comp.active_is_multidimensional:
                 comp.active_is_multidimensional = True
-        if not np.all([isinstance(a, int) for a in
-                       self.optional_components]):
+        if not np.all([isinstance(a, int) for a in self.optional_components]):
             new_list = []
             for op in self.optional_components:
                 for ic, c in enumerate(self.model):
@@ -539,9 +531,12 @@ class Samfire:
     def _request_user_input(self):
         from hyperspy.signals import Image
         from hyperspy.drawing.widgets import SquareWidget
-        mark = Image(self.metadata.marker,
-                     axes=self.model.axes_manager._get_navigation_axes_dicts())
-        mark.metadata.General.title = 'SAMFire marker'
+
+        mark = Image(
+            self.metadata.marker,
+            axes=self.model.axes_manager._get_navigation_axes_dicts(),
+        )
+        mark.metadata.General.title = "SAMFire marker"
 
         def update_when_triggered():
             ind = self.model.axes_manager.indices[::-1]
@@ -552,40 +547,49 @@ class Samfire:
         self.model.plot()
         self.model.events.fitted.connect(update_when_triggered, [])
         self.model._plot.signal_plot.events.closed.connect(
-            lambda: self.model.events.fitted.disconnect(update_when_triggered),
-            [])
+            lambda: self.model.events.fitted.disconnect(update_when_triggered), []
+        )
 
-        mark.plot(navigator='slider')
+        mark.plot(navigator="slider")
 
         w = SquareWidget(self.model.axes_manager)
-        w.color = 'yellow'
+        w.color = "yellow"
         w.set_mpl_ax(mark._plot.signal_plot.ax)
         w.connect_navigate()
 
         def connect_other_navigation1(axes_manager):
             with mark.axes_manager.events.indices_changed.suppress_callback(
-                    connect_other_navigation2):
-                for ax1, ax2 in zip(mark.axes_manager.navigation_axes,
-                                    axes_manager.navigation_axes[2:]):
+                connect_other_navigation2
+            ):
+                for ax1, ax2 in zip(
+                    mark.axes_manager.navigation_axes, axes_manager.navigation_axes[2:]
+                ):
                     ax1.value = ax2.value
 
         def connect_other_navigation2(axes_manager):
             with self.model.axes_manager.events.indices_changed.suppress_callback(
-                    connect_other_navigation1):
-                for ax1, ax2 in zip(self.model.axes_manager.navigation_axes[2:],
-                                    axes_manager.navigation_axes):
+                connect_other_navigation1
+            ):
+                for ax1, ax2 in zip(
+                    self.model.axes_manager.navigation_axes[2:],
+                    axes_manager.navigation_axes,
+                ):
                     ax1.value = ax2.value
 
         mark.axes_manager.events.indices_changed.connect(
-            connect_other_navigation2, {'obj': 'axes_manager'})
+            connect_other_navigation2, {"obj": "axes_manager"}
+        )
         self.model.axes_manager.events.indices_changed.connect(
-            connect_other_navigation1, {'obj': 'axes_manager'})
+            connect_other_navigation1, {"obj": "axes_manager"}
+        )
 
-        self.model._plot.signal_plot.events.closed.connect(
-            lambda: mark._plot.close, [])
+        self.model._plot.signal_plot.events.closed.connect(lambda: mark._plot.close, [])
         self.model._plot.signal_plot.events.closed.connect(
             lambda: self.model.axes_manager.events.indices_changed.disconnect(
-                connect_other_navigation1), [])
+                connect_other_navigation1
+            ),
+            [],
+        )
 
     def plot(self, on_count=False):
         """If possible, plot current strategy plot. Local strategies plot
@@ -609,15 +613,14 @@ class Samfire:
                     self._figure = self.active_strategy.plot(self._figure)
 
     def log(self, *args):
-        """If has a list named "_log" as attribute, appends the arguments there
-        """
-        if hasattr(self, '_log') and isinstance(self._log, list):
+        """If has a list named "_log" as attribute, appends the arguments there"""
+        if hasattr(self, "_log") and isinstance(self._log, list):
             self._log.append(args)
 
     def __repr__(self):
-        ans = u"<SAMFire of the signal titled: '"
+        ans = "<SAMFire of the signal titled: '"
         ans += self.model.signal.metadata.General.title
-        ans += u"'>"
+        ans += "'>"
         return ans
 
     def stop(self):

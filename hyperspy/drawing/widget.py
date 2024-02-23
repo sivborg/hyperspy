@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -17,12 +17,9 @@
 # along with HyperSpy. If not, see <https://www.gnu.org/licenses/#GPL>.
 
 from __future__ import division
-from packaging.version import Version
 
-
-import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import MouseEvent, PickEvent
 import numpy as np
 
 from hyperspy.drawing.utils import on_figure_window_close
@@ -49,15 +46,15 @@ class WidgetBase(object):
     needed.
     """
 
-    def __init__(self, axes_manager=None, color='red', alpha=1.0, **kwargs):
+    def __init__(self, axes_manager=None, color="red", alpha=1.0, **kwargs):
         self.axes_manager = axes_manager
         self._axes = list()
         self.ax = None
         self.picked = False
         self.selected = False
         self._selected_artist = None
-        self._size = 1.
-        self._pos = np.array([0.])
+        self._size = 1.0
+        self._pos = np.array([0.0])
         self._is_on = True
         self.background = None
         self._patch = []
@@ -66,27 +63,33 @@ class WidgetBase(object):
         self.cids = list()
         self.blit = None
         self.events = Events()
-        self.events.changed = Event(doc="""
+        self.events.changed = Event(
+            doc="""
             Event that triggers when the widget has a significant change.
 
             The event triggers after the internal state of the widget has been
             updated.
 
-            Arguments:
+            Parameters
             ----------
-                widget:
-                    The widget that changed
-            """, arguments=['obj'])
-        self.events.closed = Event(doc="""
+            widget :
+                The widget that changed
+            """,
+            arguments=["obj"],
+        )
+        self.events.closed = Event(
+            doc="""
             Event that triggers when the widget closed.
 
             The event triggers after the widget has already been closed.
 
-            Arguments:
+            Parameters
             ----------
-                widget:
-                    The widget that closed
-            """, arguments=['obj'])
+            widget :
+                The widget that closed
+            """,
+            arguments=["obj"],
+        )
         self._navigating = False
         super(WidgetBase, self).__init__(**kwargs)
 
@@ -103,17 +106,16 @@ class WidgetBase(object):
         else:
             self._axes = axes
 
-    axes = property(lambda s: s._get_axes(),
-                    lambda s, v: s._set_axes(v))
+    axes = property(lambda s: s._get_axes(), lambda s, v: s._set_axes(v))
 
     @property
     def is_on(self):
-        """Determines if the widget is set to draw if valid (turned on).
-        """
+        """Determines if the widget is set to draw if valid (turned on)."""
         return self._is_on
 
     def set_on(self, value, render_figure=True):
-        """Change the on state of the widget. If turning off, all patches will
+        """
+        Change the on state of the widget. If turning off, all patches will
         be removed from the matplotlib axes and the widget will disconnect from
         all events. If turning on, the patch(es) will be added to the
         matplotlib axes, and the widget will connect to its default events.
@@ -125,19 +127,10 @@ class WidgetBase(object):
                 self._add_patch_to(self.ax)
                 self.connect(self.ax)
             elif value is False:
-                for container in [
-                        self.ax.patches,
-                        self.ax.lines,
-                        self.ax.artists,
-                        self.ax.texts]:
-                    for p in self.patch:
-                        if p in container:
-                            if Version(matplotlib.__version__) >= Version('3.5.0'):
-                                p.remove()
-                            else:  # pragma: no cover
-                                container.remove(p)
+                for p in self.patch:
+                    p.remove()
                 self.disconnect()
-        if hasattr(super(WidgetBase, self), 'set_on'):
+        if hasattr(super(WidgetBase, self), "set_on"):
             super(WidgetBase, self).set_on(value)
         if did_something:
             if render_figure:
@@ -167,21 +160,19 @@ class WidgetBase(object):
             p.set_alpha(self._alpha)
 
     def _set_patch(self):
-        """Create the matplotlib patch(es), and store it in self.patch
-        """
-        if hasattr(super(WidgetBase, self), '_set_patch'):
+        """Create the matplotlib patch(es), and store it in self.patch"""
+        if hasattr(super(WidgetBase, self), "_set_patch"):
             super(WidgetBase, self)._set_patch()
         # Must be provided by the subclass
 
     def _add_patch_to(self, ax):
-        """Create and add the matplotlib patches to 'ax'
-        """
-        self.blit = hasattr(ax, 'hspy_fig') and ax.figure.canvas.supports_blit
+        """Create and add the matplotlib patches to 'ax'"""
+        self.blit = hasattr(ax, "hspy_fig") and ax.figure.canvas.supports_blit
         self._set_patch()
         for p in self.patch:
             ax.add_artist(p)
             p.set_animated(self.blit)
-        if hasattr(super(WidgetBase, self), '_add_patch_to'):
+        if hasattr(super(WidgetBase, self), "_add_patch_to"):
             super(WidgetBase, self)._add_patch_to(ax)
 
     def set_mpl_ax(self, ax):
@@ -209,18 +200,21 @@ class WidgetBase(object):
         if not self.patch or not self.is_on or not self.ax:
             return
 
-        canvas = self.ax.figure.canvas
+        figure = self.ax.figure
         # Simulate a pick event
         x, y = self.patch[0].get_transform().transform_point((0, 0))
-        mouseevent = MouseEvent('pick_event', canvas, x, y)
-        # when the widget is added programatically, mouseevent can be "empty"
+        mouseevent = MouseEvent("pick_event", figure.canvas, x, y)
         if mouseevent.button:
-            canvas.pick_event(mouseevent, self.patch[0])
+            try:
+                # Introduced in matplotlib 3.6 and `pick_event` deprecated
+                event = PickEvent("pick_event", figure, mouseevent, self.patch[0])
+                figure.canvas.callbacks.process("pick_event", event)
+            except Exception:  # Deprecated in matplotlib 3.6
+                figure.canvas.pick_event(mouseevent, self.patch[0])
         self.picked = False
 
     def connect(self, ax):
-        """Connect to the matplotlib Axes' events.
-        """
+        """Connect to the matplotlib Axes' events."""
         on_figure_window_close(ax.figure, self.close)
         if self._navigating:
             self.connect_navigate()
@@ -232,24 +226,22 @@ class WidgetBase(object):
         if self._navigating:
             self.disconnect_navigate()
         self.axes_manager.events.indices_changed.connect(
-            self._on_navigate, {'obj': 'axes_manager'})
-        self._on_navigate(self.axes_manager)    # Update our position
+            self._on_navigate, {"obj": "axes_manager"}
+        )
+        self._on_navigate(self.axes_manager)  # Update our position
         self._navigating = True
 
     def disconnect_navigate(self):
-        """Disconnect a previous naivgation connection.
-        """
+        """Disconnect a previous naivgation connection."""
         self.axes_manager.events.indices_changed.disconnect(self._on_navigate)
         self._navigating = False
 
     def _on_navigate(self, axes_manager):
-        """Callback for axes_manager's change notification.
-        """
-        pass    # Implement in subclass!
+        """Callback for axes_manager's change notification."""
+        pass  # Implement in subclass!
 
     def disconnect(self):
-        """Disconnect from all events (both matplotlib and navigation).
-        """
+        """Disconnect from all events (both matplotlib and navigation)."""
         for cid in self.cids:
             try:
                 self.ax.figure.canvas.mpl_disconnect(cid)
@@ -266,10 +258,9 @@ class WidgetBase(object):
         self.events.closed.trigger(obj=self)
 
     def draw_patch(self, *args):
-        """Update the patch drawing.
-        """
+        """Update the patch drawing."""
         try:
-            if hasattr(self.ax, 'hspy_fig'):
+            if hasattr(self.ax, "hspy_fig"):
                 self.ax.hspy_fig.render_figure()
             elif self.ax.figure is not None:
                 self.ax.figure.canvas.draw_idle()
@@ -330,7 +321,9 @@ class DraggableWidgetBase(WidgetBase):
 
     def __init__(self, axes_manager, **kwargs):
         super(DraggableWidgetBase, self).__init__(axes_manager, **kwargs)
-        self.events.moved = Event(doc="""
+        self.is_pointer = False
+        self.events.moved = Event(
+            doc="""
             Event that triggers when the widget was moved.
 
             The event triggers after the internal state of the widget has been
@@ -338,11 +331,13 @@ class DraggableWidgetBase(WidgetBase):
             the widget was changed, so it is the responsibility of the user
             to suppress events as neccessary to avoid closed loops etc.
 
-            Arguments:
+            Parameters
             ----------
-                obj:
-                    The widget that was moved.
-            """, arguments=['obj'])
+            obj:
+                The widget that was moved.
+            """,
+            arguments=["obj"],
+        )
         self._snap_position = True
 
         # Set default axes
@@ -352,7 +347,7 @@ class DraggableWidgetBase(WidgetBase):
             else:
                 self.axes = self.axes_manager.signal_axes[0:1]
         else:
-            self._pos = np.array([0.])
+            self._pos = np.array([0.0])
 
     def _set_axes(self, axes):
         super(DraggableWidgetBase, self)._set_axes(axes)
@@ -360,8 +355,7 @@ class DraggableWidgetBase(WidgetBase):
             self._pos = np.array([ax.low_value for ax in self.axes])
 
     def _get_indices(self):
-        """Returns a tuple with the position (indices).
-        """
+        """Returns a tuple with the position (indices)."""
         idx = []
         for i in range(len(self.axes)):
             idx.append(self.axes[i].value2index(self._pos[i]))
@@ -383,18 +377,17 @@ class DraggableWidgetBase(WidgetBase):
                 p.append(self.axes[i].index2value(value[i]))
             self.position = p
 
-    indices = property(lambda s: s._get_indices(),
-                       lambda s, v: s._set_indices(v))
+    indices = property(lambda s: s._get_indices(), lambda s, v: s._set_indices(v))
 
     def _pos_changed(self):
         """Call when the position of the widget has changed. It triggers the
         relevant events, and updates the patch position.
         """
         if self._navigating:
-            with self.axes_manager.events.indices_changed.suppress_callback(
-                    self._on_navigate):
+            with self.axes_manager.events.indices_changed.suppress():
                 for i in range(len(self.axes)):
                     self.axes[i].value = self._pos[i]
+            self.axes_manager.events.indices_changed.trigger(obj=self.axes_manager)
         self.events.moved.trigger(self)
         self.events.changed.trigger(self)
         self._update_patch_position()
@@ -416,10 +409,8 @@ class DraggableWidgetBase(WidgetBase):
         return pos
 
     def _get_position(self):
-        """Provides the position of the widget (by values) in a tuple.
-        """
-        return tuple(
-            self._pos.tolist())  # Don't pass reference, and make it clear
+        """Provides the position of the widget (by values) in a tuple."""
+        return tuple(self._pos.tolist())  # Don't pass reference, and make it clear
 
     def _set_position(self, position):
         """Sets the position of the widget (by values). The dimensions should
@@ -432,8 +423,7 @@ class DraggableWidgetBase(WidgetBase):
             self._pos = np.array(position)
             self._pos_changed()
 
-    position = property(lambda s: s._get_position(),
-                        lambda s, v: s._set_position(v))
+    position = property(lambda s: s._get_position(), lambda s, v: s._set_position(v))
 
     def _do_snap_position(self, value=None):
         """Snaps position to axes grid. Returns snapped value. If value is
@@ -453,30 +443,36 @@ class DraggableWidgetBase(WidgetBase):
                 self._pos = snap_value
                 self._pos_changed()
 
-    snap_position = property(lambda s: s._snap_position,
-                             lambda s, v: s._set_snap_position(v))
+    snap_position = property(
+        lambda s: s._snap_position, lambda s, v: s._set_snap_position(v)
+    )
 
     def connect(self, ax):
         super(DraggableWidgetBase, self).connect(ax)
         canvas = ax.figure.canvas
+        self.cids.append(canvas.mpl_connect("motion_notify_event", self._onmousemove))
+        self.cids.append(canvas.mpl_connect("pick_event", self.onpick))
         self.cids.append(
-            canvas.mpl_connect('motion_notify_event', self._onmousemove))
-        self.cids.append(canvas.mpl_connect('pick_event', self.onpick))
-        self.cids.append(canvas.mpl_connect(
-            'button_release_event', self.button_release))
+            canvas.mpl_connect("button_release_event", self.button_release)
+        )
+        canvas.mpl_connect("button_press_event", self._onjumpclick)
+
+    def _onjumpclick(self, event):
+        """This method must be provided by subclasses"""
+        pass
 
     def _on_navigate(self, axes_manager):
         if axes_manager is self.axes_manager:
             p = self._pos.tolist()
             for i, a in enumerate(self.axes):
                 p[i] = a.value
-            self.position = p    # Use property to trigger events
+            self.position = p  # Use property to trigger events
 
     def onpick(self, event):
         # Callback for MPL pick event
-        self.picked = (event.artist in self.patch)
+        self.picked = event.artist in self.patch
         self._selected_artist = event.artist
-        if hasattr(super(DraggableWidgetBase, self), 'onpick'):
+        if hasattr(super(DraggableWidgetBase, self), "onpick"):
             super(DraggableWidgetBase, self).onpick(event)
         self.selected = self.picked
 
@@ -489,14 +485,12 @@ class DraggableWidgetBase(WidgetBase):
         pass
 
     def _update_patch_position(self):
-        """Updates the position of the patch on the plot.
-        """
+        """Updates the position of the patch on the plot."""
         # This method must be provided by the subclass
         pass
 
     def _update_patch_geometry(self):
-        """Updates all geometrical properties of the patch on the plot.
-        """
+        """Updates all geometrical properties of the patch on the plot."""
         self._update_patch_position()
 
     def button_release(self, event):
@@ -556,13 +550,13 @@ class ResizableDraggableWidgetBase(DraggableWidgetBase):
     """
 
     def __init__(self, axes_manager, **kwargs):
-        super(ResizableDraggableWidgetBase, self).__init__(
-            axes_manager, **kwargs)
+        super(ResizableDraggableWidgetBase, self).__init__(axes_manager, **kwargs)
         if not self.axes:
             self._size = np.array([1])
-        self.size_step = 1      # = one step in index space
+        self.size_step = 1  # = one step in index space
         self._snap_size = True
-        self.events.resized = Event(doc="""
+        self.events.resized = Event(
+            doc="""
             Event that triggers when the widget was resized.
 
             The event triggers after the internal state of the widget has been
@@ -570,11 +564,13 @@ class ResizableDraggableWidgetBase(DraggableWidgetBase):
             the widget was changed, so it is the responsibility of the user
             to suppress events as neccessary to avoid closed loops etc.
 
-            Arguments:
+            Parameters
             ----------
-                obj:
-                    The widget that was resized.
-            """, arguments=['obj'])
+            obj:
+                The widget that was resized.
+            """,
+            arguments=["obj"],
+        )
         self.no_events_while_dragging = False
         self._drag_store = None
 
@@ -585,7 +581,7 @@ class ResizableDraggableWidgetBase(DraggableWidgetBase):
 
     def _get_step(self, axis):
         # TODO: need to check if this is working fine, particularly with
-        """ Use to determine the size of the widget with support for non
+        """Use to determine the size of the widget with support for non
         uniform axis.
         """
         if axis.index >= axis.size - 1:
@@ -606,8 +602,7 @@ class ResizableDraggableWidgetBase(DraggableWidgetBase):
 
         """
         value = np.minimum(value, [ax.size * ax.scale for ax in self.axes])
-        value = np.maximum(value,
-                           self.size_step * [ax.scale for ax in self.axes])
+        value = np.maximum(value, self.size_step * [ax.scale for ax in self.axes])
         if self.snap_size:
             value = self._do_snap_size(value)
         if np.any(self._size != value):
@@ -630,32 +625,31 @@ class ResizableDraggableWidgetBase(DraggableWidgetBase):
                 self._size = snap_value
                 self._size_changed()
 
-    snap_size = property(lambda s: s._snap_size,
-                         lambda s, v: s._set_snap_size(v))
+    snap_size = property(lambda s: s._snap_size, lambda s, v: s._set_snap_size(v))
 
     def _set_snap_all(self, value):
         # Snap position first, as snapped size can depend on position.
         self.snap_position = value
         self.snap_size = value
 
-    snap_all = property(lambda s: s.snap_size and s.snap_position,
-                        lambda s, v: s._set_snap_all(v))
+    snap_all = property(
+        lambda s: s.snap_size and s.snap_position, lambda s, v: s._set_snap_all(v)
+    )
 
     def increase_size(self):
-        """Increment all sizes by 1. Applied via 'size' property.
-        """
-        self.size = np.array(self.size) + \
-            self.size_step * np.array([a.scale for a in self.axes])
+        """Increment all sizes by 1. Applied via 'size' property."""
+        self.size = np.array(self.size) + self.size_step * np.array(
+            [a.scale for a in self.axes]
+        )
 
     def decrease_size(self):
-        """Decrement all sizes by 1. Applied via 'size' property.
-        """
-        self.size = np.array(self.size) - \
-            self.size_step * np.array([a.scale for a in self.axes])
+        """Decrement all sizes by 1. Applied via 'size' property."""
+        self.size = np.array(self.size) - self.size_step * np.array(
+            [a.scale for a in self.axes]
+        )
 
     def _size_changed(self):
-        """Triggers resize and changed events, and updates the patch.
-        """
+        """Triggers resize and changed events, and updates the patch."""
         self.events.resized.trigger(self)
         self.events.changed.trigger(self)
         self._update_patch_size()
@@ -676,7 +670,7 @@ class ResizableDraggableWidgetBase(DraggableWidgetBase):
         s = list()
         for i in range(len(self.axes)):
             s.append(int(round(value[i] * self.axes[i].scale)))
-        self.size = s   # Use property to get full processing
+        self.size = s  # Use property to get full processing
 
     def get_centre(self):
         """Gets the center indices. The default implementation is simply the
@@ -697,14 +691,12 @@ class ResizableDraggableWidgetBase(DraggableWidgetBase):
         return self.indices + self.get_size_in_indices() / 2.0
 
     def _update_patch_size(self):
-        """Updates the size of the patch on the plot.
-        """
+        """Updates the size of the patch on the plot."""
         # This method must be provided by the subclass
         pass
 
     def _update_patch_geometry(self):
-        """Updates all geometry of the patch on the plot.
-        """
+        """Updates all geometry of the patch on the plot."""
         # This method must be provided by the subclass
         pass
 
@@ -717,11 +709,10 @@ class ResizableDraggableWidgetBase(DraggableWidgetBase):
     def connect(self, ax):
         super(ResizableDraggableWidgetBase, self).connect(ax)
         canvas = ax.figure.canvas
-        self.cids.append(canvas.mpl_connect('key_press_event',
-                                            self.on_key_press))
+        self.cids.append(canvas.mpl_connect("key_press_event", self.on_key_press))
 
     def onpick(self, event):
-        if hasattr(super(ResizableDraggableWidgetBase, self), 'onpick'):
+        if hasattr(super(ResizableDraggableWidgetBase, self), "onpick"):
             super(ResizableDraggableWidgetBase, self).onpick(event)
         if self.picked:
             self._drag_store = (self.position, self.size)
@@ -792,8 +783,9 @@ class Widget2DBase(ResizableDraggableWidgetBase):
             elif self.axes_manager.signal_dimension > 1:
                 self.axes = self.axes_manager.signal_axes[0:2]
             elif len(self.axes_manager.shape) > 1:
-                self.axes = (self.axes_manager.signal_axes +
-                             self.axes_manager.navigation_axes)
+                self.axes = (
+                    self.axes_manager.signal_axes + self.axes_manager.navigation_axes
+                )
             else:
                 raise ValueError("2D widget needs at least two axes!")
         else:
@@ -804,7 +796,7 @@ class Widget2DBase(ResizableDraggableWidgetBase):
         """Returns the xy position of the widget. In this default
         implementation, the widget is centered on the position.
         """
-        return self._pos - self._size / 2.
+        return self._pos - self._size / 2.0
 
     def _get_patch_bounds(self):
         """Returns the bounds of the patch in the form of a tuple in the order
@@ -816,7 +808,7 @@ class Widget2DBase(ResizableDraggableWidgetBase):
         """
         xy = self._get_patch_xy()
         xs, ys = self.size
-        return (xy[0], xy[1], xs, ys)        # x,y,w,h
+        return (xy[0], xy[1], xs, ys)  # x,y,w,h
 
     def _update_patch_position(self):
         if self.is_on and self.patch:
@@ -832,7 +824,7 @@ class Widget2DBase(ResizableDraggableWidgetBase):
             self.draw_patch()
 
 
-class ResizersMixin(object):
+class ResizersMixin:
     """
     Widget mix-in for adding resizing manipulation handles.
 
@@ -860,9 +852,12 @@ class ResizersMixin(object):
         super(ResizersMixin, self).__init__(**kwargs)
         self.resizer_picked = False
         self.pick_offset = (0, 0)
-        self.resize_color = 'lime'
+        self.resize_color = "lime"
         pick_tol = preferences.Plot.pick_tolerance
-        self.resize_pixel_size = (pick_tol, pick_tol)  # Set to None to make one data pixel
+        self.resize_pixel_size = (
+            pick_tol,
+            pick_tol,
+        )  # Set to None to make one data pixel
         self._resizers = resizers
         self._resizer_handles = []
         self._resizers_on = False
@@ -882,8 +877,7 @@ class ResizersMixin(object):
             self._set_resizers(value, self.ax)
 
     def _update_resizers(self):
-        """Update resizer handles' patch geometry.
-        """
+        """Update resizer handles' patch geometry."""
         pos = self._get_resizer_pos()
         rsize = self._get_resizer_size()
         for i, r in enumerate(self._resizer_handles):
@@ -901,14 +895,10 @@ class ResizersMixin(object):
                     ax.add_artist(r)
                     r.set_animated(self.blit)
             else:
-                for container in [
-                        ax.patches,
-                        ax.lines,
-                        ax.artists,
-                        ax.texts]:
-                    for r in self._resizer_handles:
-                        if r in container:
-                            r.remove()
+                for r in self._resizer_handles:
+                    # check that the matplotlib patch is present before removing it
+                    if r in ax.get_children():
+                        r.remove()
             self._resizers_on = value
 
     def _get_resizer_size(self):
@@ -919,8 +909,9 @@ class ResizersMixin(object):
         if self.resize_pixel_size is None:
             rsize = [ax.scale for ax in self.axes]
         else:
-            rsize = abs(invtrans.transform(self.resize_pixel_size) -
-                           invtrans.transform((0, 0)))
+            rsize = abs(
+                invtrans.transform(self.resize_pixel_size) - invtrans.transform((0, 0))
+            )
         return rsize
 
     def _get_resizer_offset(self):
@@ -930,31 +921,28 @@ class ResizersMixin(object):
         invtrans = self.ax.transData.inverted()
         border = self.border_thickness
         # Transform the border thickness into data values
-        dl = abs(invtrans.transform((border, border)) -
-                 invtrans.transform((0, 0))) / 2
+        dl = abs(invtrans.transform((border, border)) - invtrans.transform((0, 0))) / 2
         rsize = self._get_resizer_size()
         return rsize / 2 + dl
 
     def _get_resizer_pos(self):
-        """Get the positions of the resizer handles.
-        """
+        """Get the positions of the resizer handles."""
         invtrans = self.ax.transData.inverted()
         border = self.border_thickness
         # Transform the border thickness into data values
-        dl = abs(invtrans.transform((border, border)) -
-                 invtrans.transform((0, 0))) / 2
+        dl = abs(invtrans.transform((border, border)) - invtrans.transform((0, 0))) / 2
         rsize = self._get_resizer_size()
         xs, ys = self._size
 
         positions = []
         rp = np.array(self._get_patch_xy())
-        p = rp - rsize + dl                         # Top left
+        p = rp - rsize + dl  # Top left
         positions.append(p)
-        p = rp + (xs - dl[0], -rsize[1] + dl[1])    # Top right
+        p = rp + (xs - dl[0], -rsize[1] + dl[1])  # Top right
         positions.append(p)
-        p = rp + (-rsize[0] + dl[0], ys - dl[1])    # Bottom left
+        p = rp + (-rsize[0] + dl[0], ys - dl[1])  # Bottom left
         positions.append(p)
-        p = rp + (xs - dl[0], ys - dl[1])           # Bottom right
+        p = rp + (xs - dl[0], ys - dl[1])  # Bottom right
         positions.append(p)
         return positions
 
@@ -962,7 +950,7 @@ class ResizersMixin(object):
         """Creates the resizer handles, regardless of whether they will be
         used or not.
         """
-        if hasattr(super(ResizersMixin, self), '_set_patch'):
+        if hasattr(super(ResizersMixin, self), "_set_patch"):
             super(ResizersMixin, self)._set_patch()
 
         if self._resizer_handles:
@@ -971,20 +959,27 @@ class ResizersMixin(object):
         rsize = self._get_resizer_size()
         pos = self._get_resizer_pos()
         for i in range(len(pos)):
-            r = plt.Rectangle(pos[i], rsize[0], rsize[1], fill=True, lw=0,
-                              fc=self.resize_color, picker=True,)
+            r = plt.Rectangle(
+                pos[i],
+                rsize[0],
+                rsize[1],
+                fill=True,
+                lw=0,
+                fc=self.resize_color,
+                picker=True,
+            )
             self._resizer_handles.append(r)
 
     def set_on(self, value):
-        """Turns on/off resizers whet widget is turned on/off.
-        """
+        """Turns on/off resizers whet widget is turned on/off."""
         if self.resizers and value != self._resizers_on:
             self._set_resizers(value, self.ax)
-        if hasattr(super(ResizersMixin, self), 'set_on'):
+        if hasattr(super(ResizersMixin, self), "set_on"):
             super(ResizersMixin, self).set_on(value)
 
     def onpick(self, event):
-        """Picking of main patch is same as for widget base, but this also
+        """
+        Picking of main patch is same as for widget base, but this also
         handles picking of the resize handles. If a resize handle is picked,
         `picked` is set to `True`, and `resizer_picked` is set to an integer
         indicating which handle was picked (0-3 for top left, top right, bottom
@@ -1009,16 +1004,16 @@ class ResizersMixin(object):
             self.resizer_picked = False
         else:
             self._set_resizers(False, self.ax)
-        if hasattr(super(ResizersMixin, self), 'onpick'):
+        if hasattr(super(ResizersMixin, self), "onpick"):
             super(ResizersMixin, self).onpick(event)
 
     def _add_patch_to(self, ax):
         """Same as widget base, but also adds resizers if 'resizers' property
         is True.
         """
-        if self.resizers:
+        if self.resizers and self._resizers_on:
             self._set_resizers(True, ax)
-        if hasattr(super(ResizersMixin, self), '_add_patch_to'):
+        if hasattr(super(ResizersMixin, self), "_add_patch_to"):
             super(ResizersMixin, self)._add_patch_to(ax)
 
 

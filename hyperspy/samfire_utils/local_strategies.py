@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -33,7 +33,17 @@ class ReducedChiSquaredStrategy(LocalStrategy):
     """
 
     def __init__(self):
-        super().__init__('Reduced chi squared strategy')
+        super().__init__("Reduced chi squared strategy")
         self.weight = ReducedChiSquaredWeight()
-        self.radii = 3.
+        self.radii = 3.0
         self.decay_function = exp_decay
+
+
+__all__ = [
+    "LocalStrategy",
+    "ReducedChiSquaredStrategy",
+]
+
+
+def __dir__():
+    return sorted(__all__)

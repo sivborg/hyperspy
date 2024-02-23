@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -21,7 +21,6 @@ from hyperspy.samfire_utils.strategy import nearest_indices
 
 
 class TestSamfireUtils:
-
     def setup_method(self, method):
         self.shape = (10, 10)
         self.radii = (1, 2)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -17,8 +17,10 @@
 # along with HyperSpy. If not, see <https://www.gnu.org/licenses/#GPL>.
 
 import logging
+from packaging.version import Version
 from unittest import mock
 
+import dask
 import numpy as np
 import pytest
 
@@ -209,7 +211,7 @@ class Test2D:
         s.axes_manager[1].name = "y"
         s.axes_manager[1].scale = 0.01
         s.axes_manager[1].units = "µm"
-        s.crop_image(0, 0.5, 0.0, 0.5)
+        s.crop_signal(0, 0.5, 0.0, 0.5)
         np.testing.assert_almost_equal(s.axes_manager[0].scale, 0.01)
         np.testing.assert_almost_equal(s.axes_manager[1].scale, 0.01)
         assert s.axes_manager[0].units == "µm"
@@ -225,7 +227,7 @@ class Test2D:
         s.axes_manager[1].name = "y"
         s.axes_manager[1].scale = 0.01
         s.axes_manager[1].units = "µm"
-        s.crop_image(0, 0.5, 0.0, 0.5, convert_units=True)
+        s.crop_signal(0, 0.5, 0.0, 0.5, convert_units=True)
         np.testing.assert_almost_equal(s.axes_manager[0].scale, 10.0)
         np.testing.assert_almost_equal(s.axes_manager[1].scale, 10.0)
         assert s.axes_manager[0].units == "nm"
@@ -241,7 +243,7 @@ class Test2D:
         s.axes_manager[1].name = "y"
         s.axes_manager[1].scale = 0.01
         s.axes_manager[1].units = "µm"
-        s.crop_image(0, 5.0, 0.0, 5.0, convert_units=True)
+        s.crop_signal(0, 5.0, 0.0, 5.0, convert_units=True)
         np.testing.assert_almost_equal(s.axes_manager[0].scale, 0.01)
         np.testing.assert_almost_equal(s.axes_manager[1].scale, 0.01)
         assert s.axes_manager[0].units == "µm"
@@ -285,7 +287,8 @@ class Test2D:
             _ = self.signal.split(number_of_parts=2, step_sizes=2)
 
         with pytest.raises(
-            ValueError, match="The number of parts is greater than the axis size.",
+            ValueError,
+            match="The number of parts is greater than the axis size.",
         ):
             _ = self.signal.split(number_of_parts=1e9)
 
@@ -395,37 +398,18 @@ class Test2D:
         s.change_dtype("float64")
         kwargs = {}
         if s._lazy:
+            if Version(dask.__version__) < Version("2023.2.1"):
+                pytest.skip("dask.array.random.default_rng added in 2023.2.1")
             data = s.data.compute()
-            from dask.array.random import seed, normal
+            from dask.array.random import default_rng
 
             kwargs["chunks"] = s.data.chunks
+            rng1 = default_rng(123)
+            rng2 = default_rng(123)
         else:
             data = s.data.copy()
-            from numpy.random import seed, normal
-        seed(1)
-        s.add_gaussian_noise(std=1.0)
-        seed(1)
-        if s._lazy:
-            s.compute()
-        np.testing.assert_array_almost_equal(
-            s.data - data, normal(scale=1.0, size=data.shape, **kwargs)
-        )
-
-    def test_add_gaussian_noise_seed(self):
-        s = self.signal
-        s.change_dtype("float64")
-        kwargs = {}
-        if s._lazy:
-            data = s.data.compute()
-            from dask.array.random import RandomState
-
-            kwargs["chunks"] = s.data.chunks
-            rng1 = RandomState(123)
-            rng2 = RandomState(123)
-        else:
-            data = s.data.copy()
-            rng1 = np.random.RandomState(123)
-            rng2 = np.random.RandomState(123)
+            rng1 = np.random.default_rng(123)
+            rng2 = np.random.default_rng(123)
 
         s.add_gaussian_noise(std=1.0, random_state=rng1)
         if s._lazy:
@@ -445,43 +429,18 @@ class Test2D:
         s = self.signal
         kwargs = {}
         if s._lazy:
+            if Version(dask.__version__) < Version("2023.2.1"):
+                pytest.skip("dask.array.random.default_rng added in 2023.2.1")
             data = s.data.compute()
-            from dask.array.random import seed, poisson
+            from dask.array.random import default_rng
 
             kwargs["chunks"] = s.data.chunks
+            rng1 = default_rng(123)
+            rng2 = default_rng(123)
         else:
             data = s.data.copy()
-            from numpy.random import seed, poisson
-        seed(1)
-
-        s.add_poissonian_noise(keep_dtype=False)
-
-        if s._lazy:
-            s.compute()
-        seed(1)
-        np.testing.assert_array_almost_equal(s.data, poisson(lam=data, **kwargs))
-        s.change_dtype("float64")
-        seed(1)
-
-        s.add_poissonian_noise(keep_dtype=True)
-        if s._lazy:
-            s.compute()
-        assert s.data.dtype == np.dtype("float64")
-
-    def test_add_poisson_noise_seed(self):
-        s = self.signal
-        kwargs = {}
-        if s._lazy:
-            data = s.data.compute()
-            from dask.array.random import RandomState
-
-            kwargs["chunks"] = s.data.chunks
-            rng1 = RandomState(123)
-            rng2 = RandomState(123)
-        else:
-            data = s.data.copy()
-            rng1 = np.random.RandomState(123)
-            rng2 = np.random.RandomState(123)
+            rng1 = np.random.default_rng(123)
+            rng2 = np.random.default_rng(123)
 
         s.add_poissonian_noise(keep_dtype=False, random_state=rng1)
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -28,5 +28,5 @@ def test_function():
     g.c.value = 3
     g.origin.value = 4
     np.testing.assert_allclose(g.function(10), 1)
-    np.testing.assert_allclose(g.function(4), 1/3)
+    np.testing.assert_allclose(g.function(4), 1 / 3)
     np.testing.assert_allclose(g.function(0), 3.07209674e-06)

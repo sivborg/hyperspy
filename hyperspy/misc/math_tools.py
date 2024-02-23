@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -16,12 +16,15 @@
 # You should have received a copy of the GNU General Public License
 # along with HyperSpy. If not, see <https://www.gnu.org/licenses/#GPL>.
 
+from functools import reduce
 import math
 import numbers
-import numpy as np
-import dask.array as da
+from packaging.version import Version
+import warnings
 
-from functools import reduce
+import numpy as np
+import dask
+import dask.array as da
 
 
 def symmetrize(a):
@@ -124,15 +127,22 @@ def hann_window_nth_order(m, order):
         window
     """
     if not isinstance(m, int) or m <= 0:
-        raise ValueError('Parameter m has to be positive integer greater than 0.')
+        raise ValueError("Parameter m has to be positive integer greater than 0.")
     if not isinstance(order, int) or order <= 0:
-        raise ValueError('Filter order has to be positive integer greater than 0.')
-    sin_arg = np.pi * (m - 1.) / m
-    cos_arg = 2. * np.pi / (m - 1.) * (np.arange(m))
+        raise ValueError("Filter order has to be positive integer greater than 0.")
+    sin_arg = np.pi * (m - 1.0) / m
+    cos_arg = 2.0 * np.pi / (m - 1.0) * (np.arange(m))
 
-    return m / (order * 2 * np.pi) * sum([(-1) ** i / i *
-                                          np.sin(i * sin_arg) * (np.cos(i * cos_arg) - 1)
-                                          for i in range(1, order + 1)])
+    return (
+        m
+        / (order * 2 * np.pi)
+        * sum(
+            [
+                (-1) ** i / i * np.sin(i * sin_arg) * (np.cos(i * cos_arg) - 1)
+                for i in range(1, order + 1)
+            ]
+        )
+    )
 
 
 def optimal_fft_size(target, real=False):
@@ -174,36 +184,70 @@ def optimal_fft_size(target, real=False):
 
 
 def check_random_state(seed, lazy=False):
-    """Turn a random seed into a np.random.RandomState instance.
+    """Turn a random seed into a RandomState or Generator instance.
 
     Parameters
     ----------
-    seed : None or int or np.random.RandomState or dask.array.random.RandomState
-        If None:
-            Return the RandomState singleton used by
-            np.random or dask.array.random
-        If int:
-            Return a new RandomState instance seeded with ``seed``.
-        If np.random.RandomState:
-            Return it.
-        If dask.array.random.RandomState:
-            Return it.
+    seed : None or int or numpy.random.RandomState or numpy.random.Generator or \
+        dask.array.random.RandomState or dask.array.random.Generator
+
+        - If None, returns the random state singleton used by numpy.random or
+          dask.array.random
+        - If int, returns a new random state instance seeded with ``seed``.
+        - If numpy.random.RandomState, numpy.random.Generator or
+          dask.array.random.RandomState, returns seed, `i.e.` the input.
     lazy : bool, default False
         If True, and seed is ``None`` or ``int``, return
-        a dask.array.random.RandomState instance instead.
+        a dask.array.random.RandomState instance instead for dask < 2023.2.1,
+        otherwise returns a dask.array.random.Generator instance
+
+    Returns
+    -------
+    np.random.Generator instance or dask.array.random.Generator
 
     """
     # Derived from `sklearn.utils.check_random_state`.
     # Copyright (c) 2007-2020 The scikit-learn developers.
     # All rights reserved.
-
-    if seed is None or seed is np.random:
-        return da.random._state if lazy else np.random.mtrand._rand
+    dask_version = Version(dask.__version__)
+    if seed is None:
+        if lazy:
+            if dask_version < Version("2022.10.0"):
+                return da.random._state
+            elif dask_version < Version("2023.2.1"):
+                backend = da.backends.array_creation_dispatch.backend
+                if backend not in da.random._cached_random_states.keys():
+                    # Need to initialise the backend
+                    da.random.seed()
+                return da.random._cached_random_states[backend]
+            else:
+                return da.random.default_rng()
+        else:
+            return np.random.default_rng()
 
     if isinstance(seed, numbers.Integral):
-        return da.random.RandomState(seed) if lazy else np.random.RandomState(seed)
+        if lazy:
+            try:
+                return da.random.default_rng(seed)
+            except AttributeError:
+                return da.random.RandomState(seed)
+        else:
+            return np.random.default_rng(seed)
 
-    if isinstance(seed, (da.random.RandomState, np.random.RandomState)):
+    if isinstance(seed, (np.random.RandomState, da.random.RandomState)):
+        warnings.warn(
+            "Support for RandomState generators have been deprecated and will be removed "
+            " in HyperSpy 2.0, use `default_rng` instead.",
+            DeprecationWarning,
+        )
         return seed
 
-    raise ValueError(f"{seed} cannot be used to seed a RandomState instance")
+    if isinstance(seed, np.random.Generator):
+        return seed
+
+    if dask_version >= Version("2023.2.1") and isinstance(seed, da.random.Generator):
+        return seed
+
+    raise ValueError(
+        f"{seed} cannot be used to seed a RandomState or a Generator instance"
+    )

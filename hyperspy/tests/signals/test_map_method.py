@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -29,117 +29,203 @@ from hyperspy._signals.lazy import LazySignal
 from hyperspy.misc.utils import _get_block_pattern
 
 
+def identify_function(x):
+    return x
+
+
+def substract_function(a, b):
+    return a - b
+
+
+def add_function(a, b):
+    return a + b
+
+
+def power_function(x, e):
+    return x**e
+
+
+def return_three_function(x):
+    return 3
+
+
 @lazifyTestClass(ragged=False)
 class TestSignal2D:
-
     def setup_method(self, method):
-        self.im = hs.signals.Signal2D(np.arange(0., 18).reshape((2, 3, 3)))
+        self.im = hs.signals.Signal2D(np.arange(0.0, 18).reshape((2, 3, 3)))
         self.ragged = None
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_constant_sigma(self, parallel):
+    def test_constant_sigma(self):
         s = self.im
-        s.map(gaussian_filter, sigma=1, parallel=parallel, ragged=self.ragged)
-        np.testing.assert_allclose(s.data, np.array(
-            [[[1.68829507, 2.2662213, 2.84414753],
-              [3.42207377, 4., 4.57792623],
-              [5.15585247, 5.7337787, 6.31170493]],
+        s.map(gaussian_filter, sigma=1, ragged=self.ragged)
+        np.testing.assert_allclose(
+            s.data,
+            np.array(
+                [
+                    [
+                        [1.68829507, 2.2662213, 2.84414753],
+                        [3.42207377, 4.0, 4.57792623],
+                        [5.15585247, 5.7337787, 6.31170493],
+                    ],
+                    [
+                        [10.68829507, 11.2662213, 11.84414753],
+                        [12.42207377, 13.0, 13.57792623],
+                        [14.15585247, 14.7337787, 15.31170493],
+                    ],
+                ]
+            ),
+        )
 
-             [[10.68829507, 11.2662213, 11.84414753],
-              [12.42207377, 13., 13.57792623],
-              [14.15585247, 14.7337787, 15.31170493]]]))
-
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_constant_sigma_navdim0(self, parallel):
+    def test_constant_sigma_signal_navdim0(self):
+        # navigation dimension of signal is 0
+        # sigma is constant
         s = self.im.inav[0]
-        s.map(gaussian_filter, sigma=1, parallel=parallel, ragged=self.ragged, inplace= not self.ragged)
-        np.testing.assert_allclose(s.data, np.array(
-            [[1.68829507, 2.2662213, 2.84414753],
-             [3.42207377, 4., 4.57792623],
-             [5.15585247, 5.7337787, 6.31170493]]))
+        s.map(gaussian_filter, sigma=1, ragged=self.ragged, inplace=not self.ragged)
+        np.testing.assert_allclose(
+            s.data,
+            np.array(
+                [
+                    [1.68829507, 2.2662213, 2.84414753],
+                    [3.42207377, 4.0, 4.57792623],
+                    [5.15585247, 5.7337787, 6.31170493],
+                ]
+            ),
+        )
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_variable_sigma(self, parallel):
+    def test_non_lazy_chunks(self):
+        s = self.im
+        s.map(
+            gaussian_filter,
+            sigma=1,
+            ragged=self.ragged,
+            inplace=not self.ragged,
+            navigation_chunks=(1,),
+        )
+        np.testing.assert_allclose(
+            s.data[0],
+            np.array(
+                [
+                    [1.68829507, 2.2662213, 2.84414753],
+                    [3.42207377, 4.0, 4.57792623],
+                    [5.15585247, 5.7337787, 6.31170493],
+                ]
+            ),
+        )
+
+    def test_variable_sigma(self):
         s = self.im
 
-        sigmas = np.array([0, 1])
+        sigmas = hs.signals.BaseSignal(np.array([0, 1])).T
+        s.map(gaussian_filter, sigma=sigmas, ragged=self.ragged)
 
-        s.map(gaussian_filter,
-              sigma=sigmas, parallel=parallel, ragged=self.ragged)
-        np.testing.assert_allclose(s.data, np.array(
-            [[[0.42207377, 1., 1.57792623],
-              [3.42207377, 4., 4.57792623],
-              [6.42207377, 7., 7.57792623]],
+        # For inav[0], sigma is 0, data unchanged
+        np.testing.assert_allclose(s.inav[0].data, np.arange(9).reshape((3, 3)))
+        # For inav[1], sigma is 1
+        np.testing.assert_allclose(
+            s.inav[1].data,
+            np.array(
+                [
+                    [10.68829507, 11.2662213, 11.84414753],
+                    [12.42207377, 13.0, 13.57792623],
+                    [14.15585247, 14.7337787, 15.31170493],
+                ]
+            ),
+        )
 
-             [[9.42207377, 10., 10.57792623],
-              [12.42207377, 13., 13.57792623],
-              [15.42207377, 16., 16.57792623]]]))
-
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_variable_sigma_navdim0(self, parallel):
+    def test_variable_sigma_navdim0(self):
+        # navigation dimension of signal is 1, length 2
+        # navigation dimension of sigmas is 1, length 1
+        # raise ValueError because of navigation dimension mismatch
         s = self.im
 
-        sigma = 1
-        s.map(gaussian_filter, sigma=sigma, parallel=parallel,
-              ragged=self.ragged)
-        np.testing.assert_allclose(s.data, np.array(
-            [[[1.68829507, 2.2662213, 2.84414753],
-              [3.42207377, 4., 4.57792623],
-              [5.15585247, 5.7337787, 6.31170493]],
+        sigmas = hs.signals.BaseSignal(
+            np.array(
+                [
+                    [0],
+                ]
+            )
+        ).T
+        with pytest.raises(ValueError):
+            s.map(gaussian_filter, sigma=sigmas, ragged=self.ragged)
 
-             [[10.68829507, 11.2662213, 11.84414753],
-              [12.42207377, 13., 13.57792623],
-              [14.15585247, 14.7337787, 15.31170493]]]))
+        # sigmas is a number
+        sigmas = 1
+        s.map(gaussian_filter, sigma=sigmas, ragged=self.ragged)
+        np.testing.assert_allclose(
+            s.data,
+            np.array(
+                [
+                    [
+                        [1.68829507, 2.2662213, 2.84414753],
+                        [3.42207377, 4.0, 4.57792623],
+                        [5.15585247, 5.7337787, 6.31170493],
+                    ],
+                    [
+                        [10.68829507, 11.2662213, 11.84414753],
+                        [12.42207377, 13.0, 13.57792623],
+                        [14.15585247, 14.7337787, 15.31170493],
+                    ],
+                ]
+            ),
+        )
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_axes_argument(self, parallel):
+    def test_axes_argument(self):
         s = self.im
-        s.map(rotate, angle=45, reshape=False, parallel=parallel,
-              ragged=self.ragged)
-        np.testing.assert_allclose(s.data, np.array(
-            [[[0., 2.23223305, 0.],
-              [0.46446609, 4., 7.53553391],
-              [0., 5.76776695, 0.]],
+        s.map(rotate, angle=45, reshape=False, ragged=self.ragged)
+        np.testing.assert_allclose(
+            s.data,
+            np.array(
+                [
+                    [
+                        [0.0, 2.23223305, 0.0],
+                        [0.46446609, 4.0, 7.53553391],
+                        [0.0, 5.76776695, 0.0],
+                    ],
+                    [
+                        [0.0, 11.23223305, 0.0],
+                        [9.46446609, 13.0, 16.53553391],
+                        [0.0, 14.76776695, 0.0],
+                    ],
+                ]
+            ),
+        )
 
-             [[0., 11.23223305, 0.],
-              [9.46446609, 13., 16.53553391],
-              [0., 14.76776695, 0.]]]))
-
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_different_shapes(self, parallel):
+    def test_different_shapes(self):
         s = self.im
         angles = hs.signals.BaseSignal([0, 45])
         if s._lazy:
-            s = s.map(rotate, angle=angles.T, reshape=True, inplace=False,
-                  ragged=True)
+            s = s.map(rotate, angle=angles.T, reshape=True, inplace=False, ragged=True)
             s.compute()
         else:
-            s.map(rotate, angle=angles.T, reshape=True, show_progressbar=None,
-                  parallel=parallel, ragged=True)
+            s.map(
+                rotate, angle=angles.T, reshape=True, show_progressbar=None, ragged=True
+            )
         assert s.ragged
         # the dtype
-        assert s.data.dtype is np.dtype('O')
+        assert s.data.dtype is np.dtype("O")
         # Check slicing
         assert s.inav[0].data[0] is s.data[0]
         # actual values
-        np.testing.assert_allclose(s.data[0],
-                                   np.arange(9.).reshape((3, 3)),
-                                   atol=1e-7)
-        np.testing.assert_allclose(s.data[1],
-                                   np.array([[0., 0., 0., 0.],
-                                             [0., 10.34834957,
-                                                 13.88388348, 0.],
-                                             [0., 12.11611652,
-                                                 15.65165043, 0.],
-                                             [0., 0., 0., 0.]]))
+        np.testing.assert_allclose(s.data[0], np.arange(9.0).reshape((3, 3)), atol=1e-7)
+        np.testing.assert_allclose(
+            s.data[1],
+            np.array(
+                [
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 10.34834957, 13.88388348, 0.0],
+                    [0.0, 12.11611652, 15.65165043, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                ]
+            ),
+        )
 
-    @pytest.mark.parametrize('ragged', [True, False])
+    @pytest.mark.parametrize("ragged", [True, False])
     def test_ragged(self, ragged):
         s = self.im
-        out = s.map(lambda x: x, inplace=False, ragged=ragged)
+        out = s.map(identify_function, inplace=False, ragged=ragged)
         assert out.axes_manager.navigation_shape == s.axes_manager.navigation_shape
         if ragged:
-            s.map(lambda x: x, inplace=True, ragged=ragged)
+            s.map(identify_function, inplace=True, ragged=ragged)
             for i in range(s.axes_manager.navigation_size):
                 np.testing.assert_allclose(s.data[i], out.data[i])
         else:
@@ -147,10 +233,10 @@ class TestSignal2D:
         assert out.ragged == ragged
         assert s.ragged == ragged
 
-    @pytest.mark.parametrize('ragged', [True, False])
+    @pytest.mark.parametrize("ragged", [True, False])
     def test_ragged_navigation_shape(self, ragged):
-        s = hs.stack([self.im]*3)
-        out = s.map(lambda x: x, inplace=False, ragged=ragged)
+        s = hs.stack([self.im] * 3)
+        out = s.map(identify_function, inplace=False, ragged=ragged)
         assert out.axes_manager.navigation_shape == s.axes_manager.navigation_shape
         assert out.data.shape[:2] == s.axes_manager.navigation_shape[::-1]
         assert out.ragged == ragged
@@ -159,55 +245,54 @@ class TestSignal2D:
 
 @lazifyTestClass(ragged=False)
 class TestSignal1D:
-
     def setup_method(self, method):
-        self.s = hs.signals.Signal1D(np.arange(0., 6).reshape((2, 3)))
+        self.s = hs.signals.Signal1D(np.arange(0.0, 6).reshape((2, 3)))
         self.ragged = None
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_constant_sigma(self, parallel):
+    def test_constant_sigma(self):
         s = self.s
         m = mock.Mock()
         s.events.data_changed.connect(m.data_changed)
-        s.map(gaussian_filter1d, sigma=1, parallel=parallel,
-              ragged=self.ragged)
-        np.testing.assert_allclose(s.data, np.array(
-            ([[0.42207377, 1., 1.57792623],
-              [3.42207377, 4., 4.57792623]])))
+        s.map(gaussian_filter1d, sigma=1, ragged=self.ragged)
+        np.testing.assert_allclose(
+            s.data,
+            np.array(([[0.42207377, 1.0, 1.57792623], [3.42207377, 4.0, 4.57792623]])),
+        )
         assert m.data_changed.called
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_variable_signal_parameter(self, parallel):
+    def test_variable_signal_parameter(self):
         s = self.s
         m = mock.Mock()
         s.events.data_changed.connect(m.data_changed)
-        s.map(lambda A, B: A - B, B=s, parallel=parallel, ragged=self.ragged)
+        s.map(substract_function, b=s, ragged=self.ragged)
         np.testing.assert_allclose(s.data, np.zeros_like(s.data))
         assert m.data_changed.called
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_constant_signal_parameter(self, parallel):
+    def test_constant_signal_parameter(self):
         s = self.s
         m = mock.Mock()
         s.events.data_changed.connect(m.data_changed)
-        s.map(lambda A, B: A - B, B=s.inav[0], parallel=parallel,
-              ragged=self.ragged)
-        np.testing.assert_allclose(s.data, np.array(
-            ([[0., 0., 0.],
-              [3., 3., 3.]])))
+        s.map(substract_function, b=s.inav[0], ragged=self.ragged)
+        np.testing.assert_allclose(
+            s.data, np.array(([[0.0, 0.0, 0.0], [3.0, 3.0, 3.0]]))
+        )
         assert m.data_changed.called
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_dtype(self, parallel):
+    def test_dtype(
+        self,
+    ):
         s = self.s
-        s.map(lambda data: np.sqrt(np.complex128(data)),
-              parallel=parallel, ragged=self.ragged)
-        assert s.data.dtype is np.dtype('complex128')
 
-    @pytest.mark.parametrize('ragged', [True, False])
+        def sqrt_function(data):
+            return np.sqrt(np.complex128(data))
+
+        s.map(sqrt_function, ragged=self.ragged)
+        assert s.data.dtype is np.dtype("complex128")
+
+    @pytest.mark.parametrize("ragged", [True, False])
     def test_ragged(self, ragged):
         s = self.s
-        out = s.map(lambda x: x, inplace=False, ragged=ragged)
+        out = s.map(identify_function, inplace=False, ragged=ragged)
         if ragged:
             for i in range(s.axes_manager.navigation_size):
                 np.testing.assert_allclose(s.data[i], out.data[i])
@@ -219,114 +304,106 @@ class TestSignal1D:
 
 @lazifyTestClass(ragged=False)
 class TestSignal0D:
-
     def setup_method(self, method):
-        self.s = hs.signals.BaseSignal(np.arange(0., 6).reshape((2, 3))).T
+        self.s = hs.signals.BaseSignal(np.arange(0.0, 6).reshape((2, 3))).T
         self.ragged = None
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test(self, parallel):
+    def test(self):
         s = self.s
         m = mock.Mock()
         s.events.data_changed.connect(m.data_changed)
-        s.map(lambda x, e: x ** e, e=2, parallel=parallel, ragged=self.ragged)
+        s.map(power_function, e=2, ragged=self.ragged)
         np.testing.assert_allclose(
-            s.data, (np.arange(0., 6) ** 2).reshape((2, 3,)))
+            s.data,
+            (np.arange(0.0, 6) ** 2).reshape(
+                (
+                    2,
+                    3,
+                )
+            ),
+        )
         assert m.data_changed.called
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_nav_dim_1(self, parallel):
+    def test_nav_dim_1(self):
         s = self.s.inav[1, 1]
         m = mock.Mock()
         s.events.data_changed.connect(m.data_changed)
-        s.map(lambda x, e: x ** e, e=2, parallel=parallel, ragged=self.ragged)
+        s.map(power_function, e=2, ragged=self.ragged)
         np.testing.assert_allclose(s.data, self.s.inav[1, 1].data ** 2)
-        #assert m.data_changed.called
+        # assert m.data_changed.called
 
 
-_alphabet = 'abcdefghijklmnopqrstuvwxyz'
+_alphabet = "abcdefghijklmnopqrstuvwxyz"
 
 
 @lazifyTestClass(ragged=False)
 class TestChangingAxes:
-
     def setup_method(self, method):
         self.base = hs.signals.BaseSignal(np.empty((2, 3, 4, 5, 6, 7)))
         self.ragged = None
         for ax, name in zip(self.base.axes_manager._axes, _alphabet):
             ax.name = name
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_one_nav_reducing(self, parallel):
+    def test_one_nav_reducing(self):
         s = self.base.transpose(signal_axes=4).inav[0, 0]
-        s.map(np.mean, axis=1, parallel=parallel, ragged=self.ragged)
-        assert list('def') == [ax.name for ax in
-                               s.axes_manager._axes]
+        s.map(np.mean, axis=1, ragged=self.ragged)
+        assert list("def") == [ax.name for ax in s.axes_manager._axes]
         assert 0 == len(s.axes_manager.navigation_axes)
-        s.map(np.mean, axis=(1, 2), parallel=parallel, ragged=self.ragged)
-        assert ['f'] == [ax.name for ax in s.axes_manager._axes]
+        s.map(np.mean, axis=(1, 2), ragged=self.ragged)
+        assert ["f"] == [ax.name for ax in s.axes_manager._axes]
         assert 0 == len(s.axes_manager.navigation_axes)
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_one_nav_increasing(self, parallel):
+    def test_one_nav_increasing(self):
         s = self.base.transpose(signal_axes=4).inav[0, 0]
-        s.map(np.tile, reps=(2, 1, 1, 1, 1),
-              parallel=parallel, ragged=self.ragged)
+        s.map(np.tile, reps=(2, 1, 1, 1, 1), ragged=self.ragged)
         assert len(s.axes_manager.signal_axes) == 5
-        assert set('cdef') <= {ax.name for ax in
-                               s.axes_manager._axes}
+        assert set("cdef") <= {ax.name for ax in s.axes_manager._axes}
         assert 0 == len(s.axes_manager.navigation_axes)
         assert s.data.shape == (2, 4, 5, 6, 7)
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_reducing(self, parallel):
+    def test_reducing(
+        self,
+    ):
         s = self.base.transpose(signal_axes=4)
-        s.map(np.mean, axis=1, parallel=parallel, ragged=self.ragged)
-        assert list('abdef') == [ax.name for ax in
-                                 s.axes_manager._axes]
+        s.map(np.mean, axis=1, ragged=self.ragged)
+        assert list("abdef") == [ax.name for ax in s.axes_manager._axes]
         assert 2 == len(s.axes_manager.navigation_axes)
-        s.map(np.mean, axis=(1, 2), parallel=parallel, ragged=self.ragged)
-        assert ['f'] == [ax.name for ax in
-                         s.axes_manager.signal_axes]
-        assert list('ba') == [ax.name for ax in
-                              s.axes_manager.navigation_axes]
+        s.map(np.mean, axis=(1, 2), ragged=self.ragged)
+        assert ["f"] == [ax.name for ax in s.axes_manager.signal_axes]
+        assert list("ba") == [ax.name for ax in s.axes_manager.navigation_axes]
         assert 2 == len(s.axes_manager.navigation_axes)
 
-    @pytest.mark.parametrize('parallel', [True, False])
-    def test_increasing(self, parallel):
+    def test_increasing(self):
         s = self.base.transpose(signal_axes=4)
-        s.map(np.tile, reps=(2, 1, 1, 1, 1),
-              parallel=parallel, ragged=self.ragged)
+        s.map(np.tile, reps=(2, 1, 1, 1, 1), ragged=self.ragged)
         assert len(s.axes_manager.signal_axes) == 5
-        assert set('cdef') <= {ax.name for ax in
-                               s.axes_manager.signal_axes}
-        assert list('ba') == [ax.name for ax in
-                              s.axes_manager.navigation_axes]
+        assert set("cdef") <= {ax.name for ax in s.axes_manager.signal_axes}
+        assert list("ba") == [ax.name for ax in s.axes_manager.navigation_axes]
         assert 2 == len(s.axes_manager.navigation_axes)
         assert s.data.shape == (2, 3, 2, 4, 5, 6, 7)
 
 
-@pytest.mark.parametrize('parallel', [True, False])
-def test_new_axes(parallel):
+def test_new_axes():
     s = hs.signals.Signal1D(np.empty((10, 10)))
-    s.axes_manager.navigation_axes[0].name = 'a'
-    s.axes_manager.signal_axes[0].name = 'b'
+    s.axes_manager.navigation_axes[0].name = "a"
+    s.axes_manager.signal_axes[0].name = "b"
 
     def test_func(d, i):
         i = int(i)
         _slice = () + (None,) * i + (slice(None),)
         return d[_slice]
-    res = s.map(test_func, inplace=False,
-                i=hs.signals.BaseSignal(np.arange(10)).T,
-                parallel=parallel, ragged=True)
+
+    res = s.map(
+        test_func, inplace=False, i=hs.signals.BaseSignal(np.arange(10)).T, ragged=True
+    )
     assert res is not None
     sl = res.inav[:2]
-    assert sl.axes_manager._axes[-1].name == 'a'
+    assert sl.axes_manager._axes[-1].name == "a"
     sl = res.inav[-1]
     assert isinstance(sl, hs.signals.BaseSignal)
     ax_names = {ax.name for ax in sl.axes_manager._axes}
     assert len(ax_names) == 1
-    assert not 'b' in ax_names
+    assert "b" not in ax_names
     assert sl.axes_manager.navigation_dimension == 1
 
 
@@ -336,34 +413,34 @@ class TestLazyMap:
         self.s = hs.signals.Signal2D(dask_array).as_lazy()
 
     @pytest.mark.parametrize("chunks", [(3, 2), (3, 3)])
-    def test_map_iter(self,chunks):
+    def test_map_iter(self, chunks):
         iter_array, _ = da.meshgrid(range(11), range(10))
         iter_array = iter_array.rechunk(chunks)
         s_iter = hs.signals.BaseSignal(iter_array).T
         s_iter = s_iter.as_lazy()
-        f = lambda a, b: a + b
-        s_out = self.s.map(function=f, b=s_iter, inplace=False)
+        s_out = self.s.map(function=add_function, b=s_iter, inplace=False)
         np.testing.assert_array_equal(s_out.mean(axis=(2, 3)).data, iter_array)
 
     def test_map_nav_size_error(self):
         iter_array, _ = da.meshgrid(range(12), range(10))
         s_iter = hs.signals.BaseSignal(iter_array).T
-        f = lambda a, b: a + b
         with pytest.raises(ValueError):
-            self.s.map(function=f, b=s_iter, inplace=False)
+            self.s.map(function=add_function, b=s_iter, inplace=False)
 
     def test_keep_navigation_chunks(self):
         s = self.s
-        s_out = s.map(lambda x: x, inplace=False, lazy_output=True)
-        assert (s.get_chunk_size(s.axes_manager.navigation_axes) ==
-                s_out.get_chunk_size(s_out.axes_manager.navigation_axes))
+        s_out = s.map(identify_function, inplace=False, lazy_output=True)
+        assert s.get_chunk_size(s.axes_manager.navigation_axes) == s_out.get_chunk_size(
+            s_out.axes_manager.navigation_axes
+        )
 
     def test_keep_navigation_chunks_cropping(self):
         s = self.s
         s1 = s.inav[1:-2, 2:-1]
-        s_out = s1.map(lambda x: x, inplace=False, lazy_output=True)
-        assert (s1.get_chunk_size(s1.axes_manager.navigation_axes) ==
-                s_out.get_chunk_size(s_out.axes_manager.navigation_axes))
+        s_out = s1.map(identify_function, inplace=False, lazy_output=True)
+        assert s1.get_chunk_size(
+            s1.axes_manager.navigation_axes
+        ) == s_out.get_chunk_size(s_out.axes_manager.navigation_axes)
 
     @pytest.mark.parametrize("output_signal_size", [(3,), (3, 4), (3, 4, 5)])
     def test_map_output_signal_size(self, output_signal_size):
@@ -466,33 +543,45 @@ class TestLazyResultInplace:
 
 
 class TestOutputDtype:
-
-    @pytest.mark.parametrize("dtype", [np.uint16, np.uint32, np.uint64, np.int32, np.float32])
+    @pytest.mark.parametrize(
+        "dtype", [np.uint16, np.uint32, np.uint64, np.int32, np.float32]
+    )
     def test_output_dtype_specified_not_inplace(self, dtype):
         def a_function_dtype(data):
             return data.astype("float32")
+
         s = hs.signals.Signal1D(np.zeros((10, 100)), dtype=np.int16)
-        s_out = s.map(a_function_dtype, inplace=False, output_dtype=dtype, lazy_output=True)
+        s_out = s.map(
+            a_function_dtype, inplace=False, output_dtype=dtype, lazy_output=True
+        )
         assert s_out.data.dtype == dtype
         s_out.compute()
         assert s_out.data.dtype == dtype
 
-    @pytest.mark.parametrize("dtype", [np.uint16, np.uint32, np.uint64, np.int32, np.float32])
+    @pytest.mark.parametrize(
+        "dtype", [np.uint16, np.uint32, np.uint64, np.int32, np.float32]
+    )
     def test_output_dtype_specified_inplace(self, dtype):
         def a_function_dtype(data):
             return data.astype("float32")
+
         s = hs.signals.Signal1D(np.zeros((10, 100)), dtype=np.int16)
         s.map(a_function_dtype, inplace=True, output_dtype=dtype, lazy_output=True)
         assert s.data.dtype == dtype
         s.compute()
         assert s.data.dtype == dtype
 
-    @pytest.mark.parametrize("dtype", [np.uint16, np.uint32, np.uint64, np.int32, np.float32])
+    @pytest.mark.parametrize(
+        "dtype", [np.uint16, np.uint32, np.uint64, np.int32, np.float32]
+    )
     def test_output_dtype_auto(self, dtype):
         def a_function_dtype(data, dtype_to_function):
             return data.astype(dtype_to_function)
+
         s = hs.signals.Signal1D(np.zeros((10, 100)), dtype=np.int16)
-        s_out = s.map(a_function_dtype, inplace=False, dtype_to_function=dtype, lazy_output=True)
+        s_out = s.map(
+            a_function_dtype, inplace=False, dtype_to_function=dtype, lazy_output=True
+        )
         assert s_out.data.dtype == dtype
         s_out.compute()
         assert s_out.data.dtype == dtype
@@ -501,6 +590,7 @@ class TestOutputDtype:
     def test_output_signal_size(self, output_signal_size):
         def a_function_signal_size(data, output_signal_size_for_function):
             return np.zeros(output_signal_size_for_function)
+
         s = hs.signals.Signal1D(np.zeros((10, 100)), dtype=np.int16)
         s_out = s.map(
             a_function_signal_size,
@@ -516,22 +606,21 @@ class TestOutputDtype:
     def test_output_signal_size_wrong_size(self):
         def a_function(data):
             return np.zeros(10)
+
         s = hs.signals.Signal1D(np.zeros((10, 100)), dtype=np.int16)
         s_out = s.map(
-            a_function,
-            inplace=False,
-            output_signal_size=(11, ),
-            lazy_output=True
+            a_function, inplace=False, output_signal_size=(11,), lazy_output=True
         )
         with pytest.raises(ValueError):
             s_out.compute()
 
 
 class TestOutputSignalSizeScalarWithNavigationDimensions:
-    @pytest.mark.parametrize("nav_shape", ((9, ), (8, 7), (6, 5, 4)))
+    @pytest.mark.parametrize("nav_shape", ((9,), (8, 7), (6, 5, 4)))
     def test_not_lazy_output(self, nav_shape):
         def a_function(image):
             return 10
+
         data_shape = nav_shape + (20, 30)
         data = np.zeros(data_shape)
         s = hs.signals.Signal2D(data)
@@ -546,10 +635,11 @@ class TestOutputSignalSizeScalarWithNavigationDimensions:
         assert s.data.shape == nav_shape
         assert s.axes_manager.navigation_shape == nav_shape[::-1]
 
-    @pytest.mark.parametrize("nav_shape", ((9, ), (8, 7), (6, 5, 4)))
+    @pytest.mark.parametrize("nav_shape", ((9,), (8, 7), (6, 5, 4)))
     def test_lazy_output(self, nav_shape):
         def a_function(image):
             return 10
+
         data_shape = nav_shape + (20, 30)
         data = np.zeros(data_shape)
         s = hs.signals.Signal2D(data)
@@ -642,9 +732,9 @@ class TestGetIteratingKwargsSignal2D:
     def test_iterating_kwarg_non_array(self):
         def apply_func(data, f):
             return f(data, data)
+
         s = self.s.inav[0:2, 0:2]
-        iter_add = hs.signals.BaseSignal([[np.add, np.add],
-                                          [np.add, np.add]]).T
+        iter_add = hs.signals.BaseSignal([[np.add, np.add], [np.add, np.add]]).T
         out = s.map(apply_func, f=iter_add, inplace=False)
         np.testing.assert_array_equal(out.data, s.data)
 
@@ -658,7 +748,9 @@ class TestGetBlockPattern:
         chunks = (10,) * len(input_shape)
         dask_array = da.random.random(input_shape, chunks=chunks)
         s = hs.signals.Signal2D(dask_array).as_lazy()
-        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern((s.data,), input_shape)
+        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern(
+            (s.data,), input_shape
+        )
         assert new_axis == {}
         assert adjust_chunks == {}
 
@@ -670,25 +762,38 @@ class TestGetBlockPattern:
         chunks = (10,) * len(input_shape)
         dask_array = da.random.random(input_shape, chunks=chunks)
         s = hs.signals.Signal1D(dask_array).as_lazy()
-        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern((s.data,), input_shape)
+        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern(
+            (s.data,), input_shape
+        )
         assert new_axis == {}
         assert adjust_chunks == {}
 
     def test_different_output_signal_size_signal2d(self):
         s = hs.signals.Signal2D(np.zeros((4, 5)))
-        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern((s.data,), (1,))
+        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern(
+            (s.data,), (1,)
+        )
         assert new_axis == {}
         assert adjust_chunks == {0: 1, 1: 0}
 
     def test_different_output_signal_size_signal2d_2(self):
         s = hs.signals.Signal2D(np.zeros((7, 10, 5)))
-        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern((s.data,), (7, 2))
+        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern(
+            (s.data,), (7, 2)
+        )
         assert new_axis == {}
         assert adjust_chunks == {1: 2, 2: 0}
 
     def test_different_output_signal_size_signal2d_3(self):
         s = hs.signals.Signal2D(np.zeros((3, 2, 7, 10, 5)))
-        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern((s.data,), (3, 2, 5,))
+        arg_pairs, adjust_chunks, new_axis, output_pattern = _get_block_pattern(
+            (s.data,),
+            (
+                3,
+                2,
+                5,
+            ),
+        )
         assert new_axis == {}
         assert adjust_chunks == {2: 5, 3: 0, 4: 0}
 
@@ -731,12 +836,12 @@ class TestOutputShape:
         assert s.data.shape[:-2] + (2, 3) == s_out.data.shape
 
 
-@pytest.mark.parametrize('ragged', [True, False, None])
+@pytest.mark.parametrize("ragged", [True, False, None])
 def test_singleton(ragged):
     sig = hs.signals.Signal2D(np.empty((3, 2)))
-    sig.axes_manager[0].name = 'x'
-    sig.axes_manager[1].name = 'y'
-    sig1 = sig.map(lambda x: 3, inplace=False, ragged=ragged)
+    sig.axes_manager[0].name = "x"
+    sig.axes_manager[1].name = "y"
+    sig1 = sig.map(return_three_function, inplace=False, ragged=ragged)
     sig2 = sig.map(np.sum, inplace=False, ragged=ragged)
     sig.map(np.sum, inplace=True, ragged=ragged)
     sig_list = (sig, sig1, sig2)
@@ -744,7 +849,7 @@ def test_singleton(ragged):
         assert len(_s.axes_manager._axes) == 0 if ragged else 1
         ragged2 = ragged if ragged is not None else False
         if not ragged:
-            assert _s.axes_manager[0].name == 'Scalar'
+            assert _s.axes_manager[0].name == "Scalar"
         assert _s.axes_manager.ragged == ragged2
         assert _s.ragged == ragged2
         assert isinstance(_s, hs.signals.BaseSignal)
@@ -754,15 +859,15 @@ def test_singleton(ragged):
 def test_lazy_singleton():
     sig = hs.signals.Signal2D(np.empty((3, 2)))
     sig = sig.as_lazy()
-    sig.axes_manager[0].name = 'x'
-    sig.axes_manager[1].name = 'y'
-    sig1 = sig.map(lambda x: 3, inplace=False, ragged=False)
+    sig.axes_manager[0].name = "x"
+    sig.axes_manager[1].name = "y"
+    sig1 = sig.map(return_three_function, inplace=False, ragged=False)
     sig2 = sig.map(np.sum, inplace=False, ragged=False)
     sig.map(np.sum, ragged=False, inplace=True)
     sig_list = [sig1, sig2, sig]
     for _s in sig_list:
         assert len(_s.axes_manager._axes) == 1
-        assert _s.axes_manager[0].name == 'Scalar'
+        assert _s.axes_manager[0].name == "Scalar"
         assert isinstance(_s, hs.signals.BaseSignal)
         assert not isinstance(_s, hs.signals.Signal1D)
         assert not _s.ragged
@@ -772,9 +877,9 @@ def test_lazy_singleton():
 def test_lazy_singleton_ragged():
     sig = hs.signals.Signal2D(np.empty((3, 2)))
     sig = sig.as_lazy()
-    sig.axes_manager[0].name = 'x'
-    sig.axes_manager[1].name = 'y'
-    sig1 = sig.map(lambda x: 3, inplace=False, ragged=True)
+    sig.axes_manager[0].name = "x"
+    sig.axes_manager[1].name = "y"
+    sig1 = sig.map(return_three_function, inplace=False, ragged=True)
     sig2 = sig.map(np.sum, inplace=False, ragged=True)
     sig.map(np.sum, inplace=True, ragged=True)
     sig_list = (sig1, sig2, sig)
@@ -836,10 +941,10 @@ class TestMapIterate:
         def add_sum(image, add):
             out = np.sum(image) + add
             return out
+
         s = self.s
         s_add = hs.signals.BaseSignal(2 * np.ones((10, 20))).T
-        s_out = s._map_iterate(
-            add_sum, inplace=False, iterating_kwargs={'add': s_add})
+        s_out = s._map_iterate(add_sum, inplace=False, iterating_kwargs={"add": s_add})
         assert ((s_out.data == self.dx * self.dy) + 2).all()
 
     def test_iter_kwarg_larger_shape_ragged(self):
@@ -963,16 +1068,22 @@ class TestFullProcessing:
             temp_add = add1.sum(-1) + add2
             out = image + np.sum(temp_add)
             return out
+
         x = np.ones((4, 5, 10, 11))
         s = hs.signals.Signal2D(x)
         s_add1 = hs.signals.BaseSignal(2 * np.ones((4, 5, 2, 3, 2))).transpose(3)
         s_add2 = hs.signals.BaseSignal(3 * np.ones((4, 5, 2, 3))).transpose(2)
 
         s = hs.signals.Signal2D(da.from_array(s.data, chunks=(2, 2, 2, 2))).as_lazy()
-        s_add1 = hs.signals.Signal2D(da.from_array(s_add1.data, chunks=chunk_shape)).as_lazy().transpose(
-            navigation_axes=(1, 2))
-        s_out = s.map(add_sum, inplace=False, add1=s_add1, add2=s_add2, lazy_output=False)
-        assert (s_out.axes_manager.shape == s.axes_manager.shape)
+        s_add1 = (
+            hs.signals.Signal2D(da.from_array(s_add1.data, chunks=chunk_shape))
+            .as_lazy()
+            .transpose(navigation_axes=(1, 2))
+        )
+        s_out = s.map(
+            add_sum, inplace=False, add1=s_add1, add2=s_add2, lazy_output=False
+        )
+        assert s_out.axes_manager.shape == s.axes_manager.shape
 
 
 class TestLazyNavChunkSize1:
@@ -983,13 +1094,13 @@ class TestLazyNavChunkSize1:
     def test_signal2d(self):
         dask_array = da.zeros((10, 15, 32, 32), chunks=(1, 1, 32, 32))
         s = hs.signals.Signal2D(dask_array).as_lazy()
-        s_out = s.map(self.afunction, inplace=False, parallel=False, ragged=True, lazy_output=True)
+        s_out = s.map(self.afunction, inplace=False, ragged=True, lazy_output=True)
         s_out.compute()
 
     def test_signal1d(self):
         dask_array = da.zeros((10, 15, 32), chunks=(1, 1, 32))
         s = hs.signals.Signal1D(dask_array).as_lazy()
-        s_out = s.map(self.afunction, inplace=False, parallel=False, ragged=True, lazy_output=True)
+        s_out = s.map(self.afunction, inplace=False, ragged=True, lazy_output=True)
         s_out.compute()
 
 
@@ -1003,7 +1114,6 @@ class TestLazyInputMapAll:
             inplace=False,
             reshape=False,
             lazy_output=False,
-            parallel=False,
         )
         assert not s_rot._lazy
         assert not hasattr(s_rot.data, "compute")
@@ -1027,7 +1137,6 @@ class TestLazyInputMapAll:
             inplace=True,
             reshape=False,
             lazy_output=False,
-            parallel=False,
         )
         assert not s._lazy
         assert not hasattr(s.data, "compute")
@@ -1046,15 +1155,13 @@ class TestCompareMapAllvsMapIterate:
         data = np.random.randint(1, 99, shape)
         s = hs.signals.Signal2D(data)
         kwargs = {
-            'function': rotate,
-            'angle': 31,
-            'inplace': False,
-            'reshape': False,
-            'lazy_output': False,
+            "function": rotate,
+            "angle": 31,
+            "inplace": False,
+            "reshape": False,
+            "lazy_output": False,
         }
-        s_rot_not_par = s.map(**kwargs, parallel=False)
-        s_rot_par = s.map(**kwargs, parallel=True)
-        assert (s_rot_par.data == s_rot_not_par.data).all()
+        _ = s.map(**kwargs)
 
     @pytest.mark.parametrize(
         "shape", [(50, 50), (5, 50, 50), (3, 4, 50, 50), (3, 4, 5, 50, 50)]
@@ -1063,14 +1170,14 @@ class TestCompareMapAllvsMapIterate:
         data = np.random.randint(1, 99, (2, 2, 50, 50))
         s = hs.signals.Signal2D(data)
         kwargs = {
-            'function': rotate,
-            'angle': 31,
-            'inplace': False,
-            'reshape': True,
-            'lazy_output': False,
+            "function": rotate,
+            "angle": 31,
+            "inplace": False,
+            "reshape": True,
+            "lazy_output": False,
         }
-        s_rot_not_par = s.map(**kwargs, parallel=False)
-        s_rot_par = s.map(**kwargs, parallel=True)
+        s_rot_not_par = s.map(**kwargs)
+        s_rot_par = s.map(**kwargs)
         assert (s_rot_par.data == s_rot_not_par.data).all()
         assert s_rot_not_par.axes_manager.signal_shape != (50, 50)
         assert s_rot_par.axes_manager.signal_shape != (50, 50)
@@ -1080,12 +1187,13 @@ def test_ragged():
     def afunction(image):
         output = np.arange(0, np.random.randint(1, 100))
         return output
+
     s = hs.signals.Signal1D(np.ones((10, 8, 100)))
-    s_out = s.map(afunction, inplace=False, ragged=True, parallel=False)
+    s_out = s.map(afunction, inplace=False, ragged=True)
     assert s_out.axes_manager.shape == s.axes_manager.navigation_shape
     assert s_out.data.dtype == object
     with pytest.raises(ValueError):
-        s.map(afunction, inplace=False, ragged=False, parallel=False)
+        s.map(afunction, inplace=False, ragged=False)
 
 
 class TestRaggedInputSignal:
@@ -1098,6 +1206,7 @@ class TestRaggedInputSignal:
     def test_ragged_output(self):
         def test_function(image):
             return image[:-1]
+
         s = hs.signals.BaseSignal(self.data, ragged=True)
         s_out = s.map(test_function, inplace=False)
         assert s.axes_manager.shape == s_out.axes_manager.shape
@@ -1107,6 +1216,7 @@ class TestRaggedInputSignal:
     def test_lazy_input_ragged_output(self):
         def test_function(image):
             return image[:-1]
+
         dask_array = da.from_array(self.data, chunks=(2, 2))
         s = hs.signals.BaseSignal(dask_array, ragged=True).as_lazy()
         s_out = s.map(test_function, inplace=False)
@@ -1119,6 +1229,7 @@ class TestRaggedInputSignal:
     def test_lazy_input_ragged_output_lazy_output_false(self):
         def test_function(image):
             return image[:-1]
+
         dask_array = da.from_array(self.data, chunks=(2, 2))
         s = hs.signals.BaseSignal(dask_array, ragged=True).as_lazy()
         s_out = s.map(test_function, inplace=False, lazy_output=False)
@@ -1130,6 +1241,7 @@ class TestRaggedInputSignal:
     def test_not_ragged_output(self):
         def test_function(image):
             return np.sum(image)
+
         s = hs.signals.BaseSignal(self.data, ragged=True)
         s_out = s.map(test_function, inplace=False, ragged=False)
         assert s.axes_manager.shape == s_out.axes_manager.shape
@@ -1142,3 +1254,29 @@ def test_0d_numpy_array_input():
     im = hs.signals.Signal2D(np.random.random((10, 64, 64)))
     sigmas = hs.signals.BaseSignal(np.linspace(2, 5, 10)).T
     im.map(gaussian_filter, sigma=sigmas)
+
+
+class TestMapAll:
+    def setup_method(self, method):
+        im = hs.signals.Signal2D(np.random.random((10, 64, 64)))
+        self.im = im
+
+    @pytest.mark.parametrize("inplace", (True, False))
+    def test_map_reduce(self, inplace):
+        sig = self.im.map(np.sum, inplace=inplace)
+        if inplace:
+            sig = self.im
+
+        assert sig.axes_manager.signal_shape == ()
+        assert sig.axes_manager.navigation_shape == (10,)
+        assert sig.data.shape == (10,)
+
+    @pytest.mark.parametrize("inplace", (True, False))
+    def test_map(self, inplace):
+        sig = self.im.map(gaussian_filter, inplace=inplace, sigma=2)
+        if inplace:
+            sig = self.im
+
+        assert sig.axes_manager.signal_shape == (64, 64)
+        assert sig.axes_manager.navigation_shape == (10,)
+        assert sig.data.shape == (10, 64, 64)

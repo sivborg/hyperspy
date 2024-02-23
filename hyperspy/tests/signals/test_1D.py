@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -18,6 +18,8 @@
 
 import numpy as np
 
+import pytest
+
 from hyperspy.components1d import Gaussian
 from hyperspy.decorators import lazifyTestClass
 from hyperspy.signals import Signal1D
@@ -32,6 +34,14 @@ class Test1D:
         gaussian.centre.value = 50
         self.signal = Signal1D(gaussian.function(np.arange(0, 100, 0.01)))
         self.signal.axes_manager[0].scale = 0.01
+
+    @pytest.fixture
+    def zero_d_navigate(self):
+        return Signal1D(np.arange(0, 100, 0.01))
+
+    @pytest.fixture
+    def one_d_navigate(self):
+        return Signal1D(np.repeat(np.arange(0, 100, 1)[np.newaxis, :], 3, axis=0))
 
     def test_integrate1D(self):
         integrated_signal = self.signal.integrate1D(axis=0)

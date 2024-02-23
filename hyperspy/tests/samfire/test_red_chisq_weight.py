@@ -1,4 +1,4 @@
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -22,11 +22,10 @@ from hyperspy.samfire_utils.weights.red_chisq import ReducedChiSquaredWeight
 
 
 class Test_Red_chisq_weight:
-
     def setup_method(self, method):
         self.w = ReducedChiSquaredWeight()
         artificial_model = DictionaryTreeBrowser()
-        artificial_model.add_node('red_chisq.data')
+        artificial_model.add_node("red_chisq.data")
         artificial_model.red_chisq.data = np.arange(35).reshape((5, 7))
         self.w.model = artificial_model
 

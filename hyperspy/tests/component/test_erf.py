@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -16,23 +16,16 @@
 # You should have received a copy of the GNU General Public License
 # along with HyperSpy. If not, see <https://www.gnu.org/licenses/#GPL>.
 
-
-from packaging.version import Version
-
-import pytest
-import sympy
 import numpy as np
 
 from hyperspy.components1d import Erf
 
-pytestmark = pytest.mark.skipif(Version(sympy.__version__) < Version("1.3"),
-                                reason="This test requires SymPy >= 1.3")
 
 def test_function():
     g = Erf()
     g.A.value = 1
     g.sigma.value = 2
     g.origin.value = 3
-    assert g.function(3) == 0.
-    np.testing.assert_allclose(g.function(15),0.5)
-    np.testing.assert_allclose(g.function(1.951198),-0.2,rtol=1e-6)
+    assert g.function(3) == 0.0
+    np.testing.assert_allclose(g.function(15), 0.5)
+    np.testing.assert_allclose(g.function(1.951198), -0.2, rtol=1e-6)

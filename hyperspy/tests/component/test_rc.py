@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -29,4 +29,4 @@ def test_function():
     g.tau.value = 3
     assert g.function(0) == 1
     np.testing.assert_allclose(g.function(50), 3)
-    np.testing.assert_allclose(g.function(-3), 3-2*np.e)
+    np.testing.assert_allclose(g.function(-3), 3 - 2 * np.e)

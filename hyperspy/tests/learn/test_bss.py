@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -16,14 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with HyperSpy. If not, see <https://www.gnu.org/licenses/#GPL>.
 
-from packaging.version import Version
 
 import numpy as np
 import pytest
 
+import hyperspy.api as hs
 from hyperspy._signals.signal1d import Signal1D
 from hyperspy._signals.signal2d import Signal2D
-from hyperspy.datasets import artificial_data
 from hyperspy.decorators import lazifyTestClass
 from hyperspy.misc.machine_learning.import_sklearn import sklearn_installed
 from hyperspy.misc.machine_learning.tools import amari
@@ -127,20 +126,22 @@ def test_orthomax(whiten_method):
     assert amari(W, A) < 0.5
 
     # Verify that we can change gamma for orthomax method
-    s = artificial_data.get_core_loss_eels_line_scan_signal()
+    s = hs.data.two_gaussians()
+    s.change_dtype("float64")
     s.decomposition()
     s.blind_source_separation(2, algorithm="orthomax", gamma=2)
 
 
 def test_no_decomposition_error():
-    s = artificial_data.get_core_loss_eels_line_scan_signal()
+    s = hs.data.two_gaussians()
 
     with pytest.raises(AttributeError, match="A decomposition must be performed"):
         s.blind_source_separation(2)
 
 
 def test_factors_error():
-    s = artificial_data.get_core_loss_eels_line_scan_signal()
+    s = hs.data.two_gaussians()
+    s.change_dtype("float64")
     s.decomposition()
 
     factors = s.get_decomposition_factors().data
@@ -157,14 +158,16 @@ def test_factors_error():
 @skip_sklearn
 @pytest.mark.parametrize("num_components", [None, 2])
 def test_num_components(num_components):
-    s = artificial_data.get_core_loss_eels_line_scan_signal()
+    s = hs.data.two_gaussians()
+    s.change_dtype("float64")
     s.decomposition(output_dimension=2)
     s.blind_source_separation(number_of_components=num_components)
 
 
 @skip_sklearn
 def test_components_list():
-    s = artificial_data.get_core_loss_eels_line_scan_signal()
+    s = hs.data.two_gaussians()
+    s.change_dtype("float64")
     s.decomposition(output_dimension=3)
     s.blind_source_separation(comp_list=[0, 2])
     assert s.learning_results.unmixing_matrix.shape == (2, 2)
@@ -172,7 +175,8 @@ def test_components_list():
 
 @skip_sklearn
 def test_num_components_error():
-    s = artificial_data.get_core_loss_eels_line_scan_signal()
+    s = hs.data.two_gaussians()
+    s.change_dtype("float64")
     s.decomposition()
     s.learning_results.output_dimension = None
 
@@ -183,7 +187,8 @@ def test_num_components_error():
 
 
 def test_algorithm_error():
-    s = artificial_data.get_core_loss_eels_line_scan_signal()
+    s = hs.data.two_gaussians()
+    s.change_dtype("float64")
     s.decomposition()
 
     with pytest.raises(ValueError, match="'algorithm' not recognised"):
@@ -337,7 +342,7 @@ class TestBSS2D:
         ics = rng.laplace(size=(3, 256))
         mixing_matrix = rng.random_sample(size=(100, 3))
         s = Signal2D((mixing_matrix @ ics).reshape((100, 16, 16)))
-        for (axis, name) in zip(s.axes_manager._axes, ("z", "y", "x")):
+        for axis, name in zip(s.axes_manager._axes, ("z", "y", "x")):
             axis.name = name
         s.decomposition()
 
@@ -386,36 +391,50 @@ class TestBSS2D:
         self.mask_sig.data[np.isnan(self.mask_sig.data)] = 1
         self.mask_sig.change_dtype("bool")
         self.s.blind_source_separation(
-            3, diff_order=0, fun="exp", on_loadings=False,
+            3,
+            diff_order=0,
+            fun="exp",
+            on_loadings=False,
             factors=factors.derivative(axis="x", order=1),
-            mask=self.mask_sig)
+            mask=self.mask_sig,
+        )
         np.testing.assert_allclose(
             matrix, self.s.learning_results.unmixing_matrix, atol=1e-5
         )
 
     def test_diff_axes_string_without_mask(self):
-        factors = self.s.get_decomposition_factors().inav[:3].derivative(
-            axis="x", order=1)
+        factors = (
+            self.s.get_decomposition_factors().inav[:3].derivative(axis="x", order=1)
+        )
         self.s.blind_source_separation(
             3, diff_order=0, fun="exp", on_loadings=False, factors=factors
         )
         matrix = self.s.learning_results.unmixing_matrix.copy()
         self.s.blind_source_separation(
-            3, diff_order=1, fun="exp", on_loadings=False, diff_axes=["x"],
+            3,
+            diff_order=1,
+            fun="exp",
+            on_loadings=False,
+            diff_axes=["x"],
         )
         np.testing.assert_allclose(
             matrix, self.s.learning_results.unmixing_matrix, atol=1e-3
         )
 
     def test_diff_axes_without_mask(self):
-        factors = self.s.get_decomposition_factors().inav[:3].derivative(
-            axis="y", order=1)
+        factors = (
+            self.s.get_decomposition_factors().inav[:3].derivative(axis="y", order=1)
+        )
         self.s.blind_source_separation(
             3, diff_order=0, fun="exp", on_loadings=False, factors=factors
         )
         matrix = self.s.learning_results.unmixing_matrix.copy()
         self.s.blind_source_separation(
-            3, diff_order=1, fun="exp", on_loadings=False, diff_axes=[2],
+            3,
+            diff_order=1,
+            fun="exp",
+            on_loadings=False,
+            diff_axes=[2],
         )
         np.testing.assert_allclose(
             matrix, self.s.learning_results.unmixing_matrix, atol=1e-3

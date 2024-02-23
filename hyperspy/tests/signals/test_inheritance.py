@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -24,8 +24,7 @@ from hyperspy.misc.utils import find_subclasses
 from hyperspy.signal import BaseSignal
 
 
-@pytest.mark.parametrize("signal",
-                         find_subclasses(hyperspy.signals, BaseSignal))
+@pytest.mark.parametrize("signal", find_subclasses(hyperspy.signals, BaseSignal))
 def test_lazy_signal_inheritance(signal):
     bs = getattr(hyperspy.signals, signal)
     s = bs(np.empty((2,) * bs._signal_dimension))

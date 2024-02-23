@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -22,7 +22,7 @@
 import numpy as np
 
 
-def _tv_denoise_3d(im, weight=100, eps=2.e-4, keep_type=False, n_iter_max=200):
+def _tv_denoise_3d(im, weight=100, eps=2.0e-4, keep_type=False, n_iter_max=200):
     """
     Perform total-variation denoising on 3-D arrays
 
@@ -65,7 +65,7 @@ def _tv_denoise_3d(im, weight=100, eps=2.e-4, keep_type=False, n_iter_max=200):
     >>> mask = (x -22)**2 + (y - 20)**2 + (z - 17)**2 < 8**2
     >>> mask = mask.astype(float)
     >>> mask += 0.2*np.random.randn(*mask.shape)
-    >>> res = tv_denoise_3d(mask, weight=100)
+    >>> res = _tv_denoise_3d(mask, weight=100)
     """
     im_type = im.dtype
     if im_type is not float:
@@ -78,26 +78,26 @@ def _tv_denoise_3d(im, weight=100, eps=2.e-4, keep_type=False, n_iter_max=200):
     gz = np.zeros_like(im)
     i = 0
     while i < n_iter_max:
-        d = - px - py - pz
+        d = -px - py - pz
         d[1:] += px[:-1]
         d[:, 1:] += py[:, :-1]
         d[:, :, 1:] += pz[:, :, :-1]
 
         out = im + d
-        E = (d ** 2).sum()
+        E = (d**2).sum()
 
         gx[:-1] = np.diff(out, axis=0)
         gy[:, :-1] = np.diff(out, axis=1)
         gz[:, :, :-1] = np.diff(out, axis=2)
-        norm = np.sqrt(gx ** 2 + gy ** 2 + gz ** 2)
+        norm = np.sqrt(gx**2 + gy**2 + gz**2)
         E += weight * norm.sum()
         norm *= 0.5 / weight
-        norm += 1.
-        px -= 1. / 6. * gx
+        norm += 1.0
+        px -= 1.0 / 6.0 * gx
         px /= norm
-        py -= 1. / 6. * gy
+        py -= 1.0 / 6.0 * gy
         py /= norm
-        pz -= 1 / 6. * gz
+        pz -= 1 / 6.0 * gz
         pz /= norm
         E /= float(im.size)
         if i == 0:
@@ -115,7 +115,7 @@ def _tv_denoise_3d(im, weight=100, eps=2.e-4, keep_type=False, n_iter_max=200):
         return out
 
 
-def _tv_denoise_2d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
+def _tv_denoise_2d(im, weight=50, eps=2.0e-4, keep_type=False, n_iter_max=200):
     """
     Perform total-variation denoising
 
@@ -149,7 +149,7 @@ def _tv_denoise_2d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
     Notes
     -----
     The principle of total variation denoising is explained in
-    http://en.wikipedia.org/wiki/Total_variation_denoising
+    https://en.wikipedia.org/wiki/Total_variation_denoising
 
     This code is an implementation of the algorithm of Rudin, Fatemi and Osher
     that was proposed by Chambolle in [*]_.
@@ -163,10 +163,10 @@ def _tv_denoise_2d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
 
     Examples
     ---------
-    >>> import scipy
-    >>> ascent = scipy.ascent().astype(float)
-    >>> ascent += 0.5 * ascent.std()*np.random.randn(*ascent.shape)
-    >>> denoised_ascent = tv_denoise(ascent, weight=60.0)
+    >>> import skimage
+    >>> camera = skimage.data.camera().astype(float)
+    >>> camera += 0.5 * camera.std() * np.random.randn(*camera.shape)
+    >>> denoised_camera = _tv_denoise_2d(camera, weight=60.0)
     """
     im_type = im.dtype
     if im_type is not float:
@@ -183,10 +183,10 @@ def _tv_denoise_2d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
         d[:, 1:] += py[:, :-1]
 
         out = im + d
-        E = (d ** 2).sum()
+        E = (d**2).sum()
         gx[:-1] = np.diff(out, axis=0)
         gy[:, :-1] = np.diff(out, axis=1)
-        norm = np.sqrt(gx ** 2 + gy ** 2)
+        norm = np.sqrt(gx**2 + gy**2)
         E += weight * norm.sum()
         norm *= 0.5 / weight
         norm += 1
@@ -210,7 +210,7 @@ def _tv_denoise_2d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
         return out
 
 
-def _tv_denoise_1d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
+def _tv_denoise_1d(im, weight=50, eps=2.0e-4, keep_type=False, n_iter_max=200):
     """
     Perform total-variation denoising
 
@@ -244,7 +244,7 @@ def _tv_denoise_1d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
     Notes
     -----
     The principle of total variation denoising is explained in
-    http://en.wikipedia.org/wiki/Total_variation_denoising
+    https://en.wikipedia.org/wiki/Total_variation_denoising
 
     This code is an implementation of the algorithm of Rudin, Fatemi and Osher
     that was proposed by Chambolle in [*]_.
@@ -256,12 +256,6 @@ def _tv_denoise_1d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
            applications, Journal of Mathematical Imaging and Vision,
            Springer, 2004, 20, 89-97.
 
-    Examples
-    ---------
-    >>> import scipy
-    >>> ascent = scipy.misc.ascent().astype(float)
-    >>> ascent += 0.5 * ascent.std()*np.random.randn(*ascent.shape)
-    >>> denoised_ascent = tv_denoise(ascent, weight=60.0)
     """
     im_type = im.dtype
     if im_type is not float:
@@ -275,7 +269,7 @@ def _tv_denoise_1d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
         d[1:] += px[:-1]
 
         out = im + d
-        E = (d ** 2).sum()
+        E = (d**2).sum()
         gx[:-1] = np.diff(out)
         norm = abs(gx)
         E += weight * norm.sum()
@@ -299,7 +293,7 @@ def _tv_denoise_1d(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
         return out
 
 
-def tv_denoise(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
+def tv_denoise(im, weight=50, eps=2.0e-4, keep_type=False, n_iter_max=200):
     """
     Perform total-variation denoising on 2-d and 3-d images
 
@@ -335,7 +329,7 @@ def tv_denoise(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
     Notes
     -----
     The principle of total variation denoising is explained in
-    http://en.wikipedia.org/wiki/Total_variation_denoising
+    https://en.wikipedia.org/wiki/Total_variation_denoising
 
     The principle of total variation denoising is to minimize the
     total variation of the image, which can be roughly described as
@@ -355,17 +349,16 @@ def tv_denoise(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
 
     Examples
     ---------
-    >>> # 2D example using ascent
-    >>> import scipy
-    >>> ascent = scipy.misc.ascent().astype(float)
-    >>> ascent += 0.5 * ascent.std()*np.random.randn(*ascent.shape)
-    >>> denoised_ascent = tv_denoise(ascent, weight=60)
+    >>> import skimage
+    >>> camera = skimage.data.camera().astype(float)
+    >>> camera += 0.5 * camera.std() * np.random.randn(*camera.shape)
+    >>> denoised_camera = tv_denoise(camera, weight=60)
     >>> # 3D example on synthetic data
     >>> x, y, z = np.ogrid[0:40, 0:40, 0:40]
     >>> mask = (x -22)**2 + (y - 20)**2 + (z - 17)**2 < 8**2
     >>> mask = mask.astype(float)
-    >>> mask += 0.2*np.random.randn(*mask.shape)
-    >>> res = tv_denoise_3d(mask, weight=100)
+    >>> mask += 0.2 * np.random.randn(*mask.shape)
+    >>> res = tv_denoise(mask, weight=100)
     """
 
     if im.ndim == 2:
@@ -373,5 +366,4 @@ def tv_denoise(im, weight=50, eps=2.e-4, keep_type=False, n_iter_max=200):
     elif im.ndim == 3:
         return _tv_denoise_3d(im, weight, eps, keep_type, n_iter_max)
     else:
-        raise ValueError(
-            'only 2-d and 3-d images may be denoised with this function')
+        raise ValueError("only 2-d and 3-d images may be denoised with this function")

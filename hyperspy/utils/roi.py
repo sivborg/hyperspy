@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -24,14 +24,19 @@ from hyperspy.roi import (
     Point2DROI,
     RectangularROI,
     SpanROI,
+<<<<<<< HEAD
     PolygonROI
     )
+=======
+)
+>>>>>>> bible/RELEASE_next_minor
 
 
 __doc__ = hyperspy.roi.__doc__
 
 
 __all__ = [
+<<<<<<< HEAD
     'CircleROI',
     'Line2DROI',
     'Point1DROI',
@@ -40,6 +45,15 @@ __all__ = [
     'SpanROI',
     'PolygonROI'
     ]
+=======
+    "CircleROI",
+    "Line2DROI",
+    "Point1DROI",
+    "Point2DROI",
+    "RectangularROI",
+    "SpanROI",
+]
+>>>>>>> bible/RELEASE_next_minor
 
 
 def __dir__():

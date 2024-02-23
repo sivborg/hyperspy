@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -21,6 +21,7 @@ from contextlib import contextmanager
 import warnings
 
 import numpy as np
+from unittest import mock
 
 
 @contextmanager
@@ -62,8 +63,8 @@ def update_close_figure(check_data_changed_close=True):
 def assert_deep_almost_equal(actual, expected, *args, **kwargs):
     """Assert that two complex structures have almost equal contents.
     Compares lists, dicts and tuples recursively. Checks numeric values
-    using :py:func:`numpy.testing.assert_allclose` and
-    checks all other values with :py:func:`numpy.testing.assert_equal`.
+    using :func:`numpy.testing.assert_allclose` and
+    checks all other values with :func:`numpy.testing.assert_equal`.
     Accepts additional positional and keyword arguments and pass those
     intact to assert_allclose() (that's how you specify comparison
     precision).
@@ -75,14 +76,14 @@ def assert_deep_almost_equal(actual, expected, *args, **kwargs):
     expected: list, dict or tuple
         Expected values.
     *args :
-        Arguments are passed to :py:func:`numpy.testing.assert_allclose` or
-        :py:func:`assert_deep_almost_equal`.
+        Arguments are passed to :func:`numpy.testing.assert_allclose` or
+        :func:`assert_deep_almost_equal`.
     **kwargs :
         Keyword arguments are passed to
-        :py:func:`numpy.testing.assert_allclose` or
-        :py:func:`assert_deep_almost_equal`.
+        :func:`numpy.testing.assert_allclose` or
+        :func:`assert_deep_almost_equal`.
     """
-    is_root = not "__trace" in kwargs
+    is_root = "__trace" not in kwargs
     trace = kwargs.pop("__trace", "ROOT")
     try:
         if isinstance(expected, (int, float, complex)):
@@ -121,3 +122,28 @@ def sanitize_dict(dictionary):
 def check_running_tests_in_CI():
     if "CI" in os.environ:
         return os.environ.get("CI")
+
+
+def mock_event(
+    fig,
+    canvas,
+    button=None,
+    key=None,
+    xdata=None,
+    ydata=None,
+    inaxes=True,
+    artist=None,
+    mouseevent=None,
+):
+    event = mock.Mock()
+    event.button = button
+    event.key = key
+    event.xdata, event.ydata = xdata, ydata
+    event.inaxes = inaxes
+    event.fig = fig
+    event.canvas = canvas
+    event.guiEvent = None
+    event.name = "MockEvent"
+    event.artist = artist
+    event.mouseevent = mouseevent
+    return event

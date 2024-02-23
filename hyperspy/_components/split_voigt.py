@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -21,9 +21,10 @@ import numpy as np
 from hyperspy.component import Component, _get_scaling_factor
 from hyperspy._components.gaussian import _estimate_gaussian_parameters
 from hyperspy.docstrings.parameters import FUNCTION_ND_DOCSTRING
-from hyperspy.misc.utils import is_binned # remove in v2.0
+
 
 sqrt2pi = np.sqrt(2 * np.pi)
+
 
 class SplitVoigt(Component):
 
@@ -56,18 +57,17 @@ class SplitVoigt(Component):
     :math:`centre`     centre
     ================= ===========
 
-    Note
+    Notes
     -----
     This is a voigt function in which the upstream and downstream variance or
     sigma is allowed to vary to create an asymmetric profile
-    In this case the voigt is a pseudo voigt- consisting of a
+    In this case the voigt is a pseudo voigt consisting of a
     mixed gaussian and lorentzian sum
 
     """
 
-    def __init__(self, A=1., sigma1=1., sigma2=1.0, fraction=0.0, centre=0.):
-        Component.__init__(
-            self, ('A', 'sigma1', 'sigma2', 'centre', 'fraction'))
+    def __init__(self, A=1.0, sigma1=1.0, sigma2=1.0, fraction=0.0, centre=0.0):
+        Component.__init__(self, ("A", "sigma1", "sigma2", "centre", "fraction"))
         self.A.value = A
         self.sigma1.value = sigma1
         self.sigma2.value = sigma2
@@ -88,11 +88,13 @@ class SplitVoigt(Component):
         self.convolved = True
 
     def _function(self, x, A, sigma1, sigma2, fraction, centre):
-        arg = (x - centre)
-        lor1 = (A / (1.0 + ((1.0 * arg) / sigma1) ** 2)) \
-            / (0.5 * np.pi * (sigma1 + sigma2))
-        lor2 = (A / (1.0 + ((1.0 * arg) / sigma2) ** 2)) \
-            / (0.5 * np.pi * (sigma1 + sigma2))
+        arg = x - centre
+        lor1 = (A / (1.0 + ((1.0 * arg) / sigma1) ** 2)) / (
+            0.5 * np.pi * (sigma1 + sigma2)
+        )
+        lor2 = (A / (1.0 + ((1.0 * arg) / sigma2) ** 2)) / (
+            0.5 * np.pi * (sigma1 + sigma2)
+        )
 
         prefactor = A / (sqrt2pi * 0.5 * (sigma1 + sigma2))
         gauss1 = prefactor * np.exp(-0.5 * arg * arg / (sigma1 * sigma1))
@@ -131,16 +133,14 @@ class SplitVoigt(Component):
         return self._function(x, A, sigma1, sigma2, fraction, centre)
 
     def function_nd(self, axis):
-        """%s
-
-        """
+        """%s"""
         if self._is_navigation_multidimensional:
             x = axis[np.newaxis, :]
-            A = self.A.map['values'][..., np.newaxis]
-            sigma1 = self.sigma1.map['values'][..., np.newaxis]
-            sigma2 = self.sigma2.map['values'][..., np.newaxis]
-            fraction = self.fraction.map['values'][..., np.newaxis]
-            centre = self.centre.map['values'][..., np.newaxis]
+            A = self.A.map["values"][..., np.newaxis]
+            sigma1 = self.sigma1.map["values"][..., np.newaxis]
+            sigma2 = self.sigma2.map["values"][..., np.newaxis]
+            fraction = self.fraction.map["values"][..., np.newaxis]
+            centre = self.centre.map["values"][..., np.newaxis]
         else:
             x = axis
             A = self.A.value
@@ -158,7 +158,7 @@ class SplitVoigt(Component):
 
         Parameters
         ----------
-        signal : Signal1D instance
+        signal : :class:`~.api.signals.Signal1D`
         x1 : float
             Defines the left limit of the spectral range to use for the
             estimation.
@@ -175,25 +175,27 @@ class SplitVoigt(Component):
 
         Notes
         -----
-        Adapted from http://www.scipy.org/Cookbook/FittingData
+        Adapted from https://scipy-cookbook.readthedocs.io/items/FittingData.html
 
         Examples
         --------
 
-        >>> g = hs.model.components1D.Gaussian()
-        >>> x = np.arange(-10,10, 0.01)
-        >>> data = np.zeros((32,32,2000))
-        >>> data[:] = g.function(x).reshape((1,1,2000))
-        >>> s = hs.signals.Signal1D({'data' : data})
-        >>> s.axes_manager.axes[-1].offset = -10
-        >>> s.axes_manager.axes[-1].scale = 0.01
-        >>> g.estimate_parameters(s, -10,10, False)
+        >>> g = hs.model.components1D.SplitVoigt()
+        >>> x = np.arange(-10, 10, 0.01)
+        >>> data = np.zeros((32, 32, 2000))
+        >>> data[:] = g.function(x).reshape((1, 1, 2000))
+        >>> s = hs.signals.Signal1D(data)
+        >>> s.axes_manager[-1].offset = -10
+        >>> s.axes_manager[-1].scale = 0.01
+        >>> g.estimate_parameters(s, -10, 10, False)
+        True
 
         """
         super()._estimate_parameters(signal)
         axis = signal.axes_manager.signal_axes[0]
-        centre, height, sigma = _estimate_gaussian_parameters(signal, x1, x2,
-                                                              only_current)
+        centre, height, sigma = _estimate_gaussian_parameters(
+            signal, x1, x2, only_current
+        )
         scaling_factor = _get_scaling_factor(signal, axis, centre)
 
         if only_current is True:
@@ -201,26 +203,22 @@ class SplitVoigt(Component):
             self.sigma1.value = sigma
             self.sigma2.value = sigma
             self.A.value = height * sigma * sqrt2pi
-            if is_binned(signal):
-            # in v2 replace by
-            #if axis.is_binned:
+            if axis.is_binned:
                 self.A.value /= scaling_factor
             return True
         else:
             if self.A.map is None:
                 self._create_arrays()
-            self.A.map['values'][:] = height * sigma * sqrt2pi
-            if is_binned(signal):
-            # in v2 replace by
-            #if axis.is_binned:
-                self.A.map['values'][:] /= scaling_factor
-            self.A.map['is_set'][:] = True
-            self.sigma1.map['values'][:] = sigma
-            self.sigma1.map['is_set'][:] = True
-            self.sigma2.map['values'][:] = sigma
-            self.sigma2.map['is_set'][:] = True
-            self.centre.map['values'][:] = centre
-            self.centre.map['is_set'][:] = True
+            self.A.map["values"][:] = height * sigma * sqrt2pi
+            if axis.is_binned:
+                self.A.map["values"][:] /= scaling_factor
+            self.A.map["is_set"][:] = True
+            self.sigma1.map["values"][:] = sigma
+            self.sigma1.map["is_set"][:] = True
+            self.sigma2.map["values"][:] = sigma
+            self.sigma2.map["is_set"][:] = True
+            self.centre.map["values"][:] = centre
+            self.centre.map["is_set"][:] = True
             self.fetch_stored_values()
             return True
 

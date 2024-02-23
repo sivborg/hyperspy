@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -18,8 +18,9 @@
 
 import numpy as np
 import pytest
+import skimage
+
 from hyperspy.misc.tv_denoise import tv_denoise
-from scipy.misc import ascent
 
 
 def test_tv_denoise_error():
@@ -29,21 +30,21 @@ def test_tv_denoise_error():
 
 def test_2d_tv_denoise():
     rng = np.random.RandomState(123)
-    data = ascent().astype(float)
+    data = skimage.data.camera().astype(float)
     data_noisy = data + data.std() * rng.randn(*data.shape)
     data_clean = tv_denoise(data, weight=60)
 
     norm_noisy = np.linalg.norm(data - data_noisy) / np.linalg.norm(data)
     norm_clean = np.linalg.norm(data - data_clean) / np.linalg.norm(data)
 
-    np.testing.assert_allclose(norm_noisy, 0.48604971)
-    np.testing.assert_allclose(norm_clean, 0.10888393)
+    np.testing.assert_allclose(norm_noisy, 0.49466990)
+    np.testing.assert_allclose(norm_clean, 0.06453270)
 
 
 def test_3d_tv_denoise():
     rng = np.random.RandomState(123)
     x, y, z = np.ogrid[0:40, 0:40, 0:40]
-    data = (x - 22) ** 2 + (y - 20) ** 2 + (z - 17) ** 2 < 8 ** 2
+    data = (x - 22) ** 2 + (y - 20) ** 2 + (z - 17) ** 2 < 8**2
     data = 255 * data.astype(float)
     data_noisy = data + data.std() * rng.randn(*data.shape)
     data_clean = tv_denoise(data_noisy, weight=100)

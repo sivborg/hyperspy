@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -21,7 +21,6 @@ import dask.array as da
 
 from hyperspy.component import _get_scaling_factor
 from hyperspy._components.expression import Expression
-from hyperspy.misc.utils import is_binned # remove in v2.0
 
 
 def _estimate_lorentzian_parameters(signal, x1, x2, only_current):
@@ -30,19 +29,21 @@ def _estimate_lorentzian_parameters(signal, x1, x2, only_current):
     X = axis.axis[i1:i2]
 
     if only_current is True:
-        data = signal()[i1:i2]
+        data = signal._get_current_data()[i1:i2]
         i = 0
         centre_shape = (1,)
     else:
         i = axis.index_in_array
-        data_gi = [slice(None), ] * len(signal.data.shape)
+        data_gi = [
+            slice(None),
+        ] * len(signal.data.shape)
         data_gi[axis.index_in_array] = slice(i1, i2)
         data = signal.data[tuple(data_gi)]
         centre_shape = list(data.shape)
         centre_shape[i] = 1
 
-    cdf = np.cumsum(data,i)
-    cdfnorm = cdf/np.max(cdf, i).reshape(centre_shape)
+    cdf = np.cumsum(data, i)
+    cdfnorm = cdf / np.max(cdf, i).reshape(centre_shape)
 
     icentre = np.argmin(abs(0.5 - cdfnorm), i)
     igamma1 = np.argmin(abs(0.75 - cdfnorm), i)
@@ -77,7 +78,7 @@ class Lorentzian(Expression):
 
 
     Parameters
-    -----------
+    ----------
     A : float
         Area parameter, where :math:`A/(\gamma\pi)` is the maximum (height) of
         peak.
@@ -88,14 +89,14 @@ class Lorentzian(Expression):
         Location of the peak maximum.
     **kwargs
         Extra keyword arguments are passed to the
-        :py:class:`~._components.expression.Expression` component.
+        :class:`~.api.model.components1D.Expression` component.
 
 
     For convenience the `fwhm` and `height` attributes can be used to get and set
     the full-with-half-maximum and height of the distribution, respectively.
     """
 
-    def __init__(self, A=1., gamma=1., centre=0., module="numexpr", **kwargs):
+    def __init__(self, A=1.0, gamma=1.0, centre=0.0, module=None, **kwargs):
         # We use `_gamma` internally to workaround the use of the `gamma`
         # function in sympy
         super().__init__(
@@ -108,10 +109,11 @@ class Lorentzian(Expression):
             module=module,
             autodoc=False,
             rename_pars={"gamma_": "gamma"},
-            **kwargs)
+            **kwargs,
+        )
 
         # Boundaries
-        self.A.bmin = 0.
+        self.A.bmin = 0.0
         self.A.bmax = None
 
         self.gamma.bmin = None
@@ -129,7 +131,7 @@ class Lorentzian(Expression):
 
         Parameters
         ----------
-        signal : Signal1D instance
+        signal : :class:`~.api.signals.Signal1D`
         x1 : float
             Defines the left limit of the spectral range to use for the
             estimation.
@@ -160,36 +162,34 @@ class Lorentzian(Expression):
         >>> s.axes_manager[-1].offset = -10
         >>> s.axes_manager[-1].scale = 0.01
         >>> g.estimate_parameters(s, -10, 10, False)
+        True
         """
 
         super()._estimate_parameters(signal)
         axis = signal.axes_manager.signal_axes[0]
-        centre, height, gamma = _estimate_lorentzian_parameters(signal, x1, x2,
-                                                              only_current)
+        centre, height, gamma = _estimate_lorentzian_parameters(
+            signal, x1, x2, only_current
+        )
         scaling_factor = _get_scaling_factor(signal, axis, centre)
 
         if only_current is True:
             self.centre.value = centre
             self.gamma.value = gamma
             self.A.value = height * gamma * np.pi
-            if is_binned(signal):
-            # in v2 replace by
-            #if axis.is_binned:
+            if axis.is_binned:
                 self.A.value /= scaling_factor
             return True
         else:
             if self.A.map is None:
                 self._create_arrays()
-            self.A.map['values'][:] = height * gamma * np.pi
-            if is_binned(signal):
-            # in v2 replace by
-            #if axis.is_binned:
-                self.A.map['values'] /= scaling_factor
-            self.A.map['is_set'][:] = True
-            self.gamma.map['values'][:] = gamma
-            self.gamma.map['is_set'][:] = True
-            self.centre.map['values'][:] = centre
-            self.centre.map['is_set'][:] = True
+            self.A.map["values"][:] = height * gamma * np.pi
+            if axis.is_binned:
+                self.A.map["values"] /= scaling_factor
+            self.A.map["is_set"][:] = True
+            self.gamma.map["values"][:] = gamma
+            self.gamma.map["is_set"][:] = True
+            self.centre.map["values"][:] = centre
+            self.centre.map["is_set"][:] = True
             self.fetch_stored_values()
             return True
 

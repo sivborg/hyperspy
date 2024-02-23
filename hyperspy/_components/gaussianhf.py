@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -21,7 +21,7 @@ import math
 from hyperspy._components.expression import Expression
 from hyperspy._components.gaussian import _estimate_gaussian_parameters
 from hyperspy.component import _get_scaling_factor
-from hyperspy.misc.utils import is_binned # remove in v2.0
+
 
 sqrt2pi = math.sqrt(2 * math.pi)
 sigma2fwhm = 2 * math.sqrt(2 * math.log(2))
@@ -66,7 +66,7 @@ class GaussianHF(Expression):
         Location of the gaussian maximum, also the mean position.
     **kwargs
         Extra keyword arguments are passed to the
-        :py:class:`~._components.expression.Expression` component.
+        :class:`~.api.model.components1D.Expression` component.
 
     Attributes
     ----------
@@ -77,14 +77,13 @@ class GaussianHF(Expression):
         Convenience attribute to get, set the width and defined for
         compatibility with `Gaussian` component.
 
-    See also
+    See Also
     --------
-    ~._components.gaussian.Gaussian
+    Gaussian
 
     """
 
-    def __init__(self, height=1., fwhm=1., centre=0., module="numexpr",
-                 **kwargs):
+    def __init__(self, height=1.0, fwhm=1.0, centre=0.0, module=None, **kwargs):
         super().__init__(
             expression="height * exp(-(x - centre)**2 * 4 * log(2)/fwhm**2)",
             name="GaussianHF",
@@ -98,10 +97,10 @@ class GaussianHF(Expression):
         )
 
         # Boundaries
-        self.height.bmin = 0.
+        self.height.bmin = 0.0
         self.height.bmax = None
 
-        self.fwhm.bmin = 0.
+        self.fwhm.bmin = 0.0
         self.fwhm.bmax = None
 
         self.isbackground = False
@@ -112,7 +111,7 @@ class GaussianHF(Expression):
 
         Parameters
         ----------
-        signal : Signal1D instance
+        signal : :class:`~.api.signals.Signal1D`
         x1 : float
             Defines the left limit of the spectral range to use for the
             estimation.
@@ -128,7 +127,7 @@ class GaussianHF(Expression):
 
         Notes
         -----
-        Adapted from http://www.scipy.org/Cookbook/FittingData
+        Adapted from https://scipy-cookbook.readthedocs.io/items/FittingData.html
 
         Examples
         --------
@@ -141,36 +140,34 @@ class GaussianHF(Expression):
         >>> s.axes_manager[-1].offset = -10
         >>> s.axes_manager[-1].scale = 0.01
         >>> g.estimate_parameters(s, -10, 10, False)
+        True
         """
 
         super()._estimate_parameters(signal)
         axis = signal.axes_manager.signal_axes[0]
-        centre, height, sigma = _estimate_gaussian_parameters(signal, x1, x2,
-                                                              only_current)
+        centre, height, sigma = _estimate_gaussian_parameters(
+            signal, x1, x2, only_current
+        )
         scaling_factor = _get_scaling_factor(signal, axis, centre)
 
         if only_current is True:
             self.centre.value = centre
             self.fwhm.value = sigma * sigma2fwhm
             self.height.value = float(height)
-            if is_binned(signal):
-            # in v2 replace by
-            #if axis.is_binned:
+            if axis.is_binned:
                 self.height.value /= scaling_factor
             return True
         else:
             if self.height.map is None:
                 self._create_arrays()
-            self.height.map['values'][:] = height
-            if is_binned(signal):
-            # in v2 replace by
-            #if axis.is_binned:
-                self.height.map['values'][:] /= scaling_factor
-            self.height.map['is_set'][:] = True
-            self.fwhm.map['values'][:] = sigma * sigma2fwhm
-            self.fwhm.map['is_set'][:] = True
-            self.centre.map['values'][:] = centre
-            self.centre.map['is_set'][:] = True
+            self.height.map["values"][:] = height
+            if axis.is_binned:
+                self.height.map["values"][:] /= scaling_factor
+            self.height.map["is_set"][:] = True
+            self.fwhm.map["values"][:] = sigma * sigma2fwhm
+            self.fwhm.map["is_set"][:] = True
+            self.centre.map["values"][:] = centre
+            self.centre.map["is_set"][:] = True
             self.fetch_stored_values()
             return True
 
@@ -194,5 +191,4 @@ class GaussianHF(Expression):
         """
         Utility function to get gaussian integral as Signal1D
         """
-        return (self.height.as_signal() * self.fwhm.as_signal() *
-                sqrt2pi / sigma2fwhm)
+        return self.height.as_signal() * self.fwhm.as_signal() * sqrt2pi / sigma2fwhm

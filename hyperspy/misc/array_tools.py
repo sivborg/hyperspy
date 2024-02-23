@@ -1,4 +1,4 @@
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -21,9 +21,8 @@ import logging
 
 import dask.array as da
 import numpy as np
-from numba import njit
 
-
+from hyperspy.decorators import jit_ifnumba
 from hyperspy.misc.math_tools import anyfloatin
 from hyperspy.docstrings.utils import REBIN_ARGS
 
@@ -43,7 +42,7 @@ def get_array_memory_size_in_GiB(shape, dtype):
     """
     if not isinstance(dtype, np.dtype):
         dtype = np.dtype(dtype)
-    return np.array(shape).cumprod()[-1] * dtype.itemsize / 2.0 ** 30
+    return np.array(shape).cumprod()[-1] * dtype.itemsize / 2.0**30
 
 
 def are_aligned(shape1, shape2):
@@ -84,7 +83,9 @@ def homogenize_ndim(*args):
 
 
 def _requires_linear_rebin(arr, scale):
-    """Returns True if linear_rebin is required.
+    """
+    Returns True if linear_rebin is required.
+
     Parameters
     ----------
     arr: array
@@ -97,31 +98,34 @@ def _requires_linear_rebin(arr, scale):
 
 
 def rebin(a, new_shape=None, scale=None, crop=True, dtype=None):
-    """Rebin data into a smaller or larger array based on a linear
+    """
+    Rebin data into a smaller or larger array based on a linear
     interpolation. Specify either a new_shape or a scale. Scale of 1 means no
     binning. Scale less than one results in up-sampling.
 
     Parameters
     ----------
-    a : numpy array
+    a : numpy.ndarray
         The array to rebin.
     %s
 
     Returns
     -------
-    numpy array
+    numpy.ndarray
 
     Examples
     --------
-    >>> a=rand(6,4); b=rebin(a,scale=(3,2))
-    >>> a=rand(6); b=rebin(a,scale=(2,))
+    >>> a = np.random.random((6, 4))
+    >>> b = rebin(a, scale=(3, 2))
+    >>> b.shape
+    (2, 2)
 
     Notes
     -----
     Fast ``re_bin`` function Adapted from scipy cookbook
     If rebin function fails with error stating that the function is 'not binned
     and therefore cannot be rebinned', add binned to axes parameters with:
-    >>> s.axes_manager[axis].is_binned = True
+    >>> s.axes_manager[axis].is_binned = True # doctest: +SKIP
 
     """
     # Series of if statements to check that only one out of new_shape or scale
@@ -135,22 +139,18 @@ def rebin(a, new_shape=None, scale=None, crop=True, dtype=None):
         scale = []
         for i, _ in enumerate(a.shape):
             scale.append(a.shape[i] / new_shape[i])
-    else:
-        new_shape = new_shape
-        scale = scale
-    if isinstance(dtype, str) and dtype != 'same':
+    if isinstance(dtype, str) and dtype != "same":
         raise ValueError(
-            '`dtype` argument needs to be None, a numpy dtype or '
-            'the string "same".'
-            )
+            "`dtype` argument needs to be None, a numpy dtype or " 'the string "same".'
+        )
 
     # check whether or not interpolation is needed.
     if _requires_linear_rebin(arr=a, scale=scale):
         _logger.debug("Using linear_bin")
         return _linear_bin(a, scale, crop, dtype=dtype)
     else:
-        if dtype == 'same':
-            dtype = a.dtype
+        if dtype == "same":
+            dtype = a.dtype.name
         _logger.debug("Using standard rebin with lazy support")
         # if interpolation is not needed run fast re_bin function.
         # Adapted from scipy cookbook.
@@ -175,13 +175,14 @@ def rebin(a, new_shape=None, scale=None, crop=True, dtype=None):
             rshape = ()
             for athing in zip(new_shape, scale):
                 rshape += athing
-            return a.reshape(rshape).sum(axis=tuple(
-                2 * i + 1 for i in range(lenShape)), dtype=dtype)
+            return a.reshape(rshape).sum(
+                axis=tuple(2 * i + 1 for i in range(lenShape)), dtype=dtype
+            )
         else:
             try:
-                return da.coarsen(np.sum, a,
-                                  {i: int(f) for i, f in enumerate(scale)},
-                                  dtype=dtype)
+                return da.coarsen(
+                    np.sum, a, {i: int(f) for i, f in enumerate(scale)}, dtype=dtype
+                )
             # we provide slightly better error message in hyperspy context
             except ValueError:
                 raise ValueError(
@@ -189,11 +190,12 @@ def rebin(a, new_shape=None, scale=None, crop=True, dtype=None):
                     "Rebin fewer dimensions at a time to avoid this error"
                 )
 
+
 # Replacing space is necessary to get the correct indentation
 rebin.__doc__ %= REBIN_ARGS.replace("        ", "    ")
 
 
-@njit(cache=True)
+@jit_ifnumba(cache=True)
 def _linear_bin_loop(result, data, scale):  # pragma: no cover
     for j in range(result.shape[0]):
         # Begin by determining the upper and lower limits of a given new pixel.
@@ -273,16 +275,17 @@ def _linear_bin(dat, scale, crop=True, dtype=None):
         )
 
     # Unsuported dtype value argument
-    dtype_str_same_integer = (isinstance(dtype, str) and dtype == 'same' and
-                              np.issubdtype(dat.dtype, np.integer))
-    dtype_interger = (not isinstance(dtype, str) and
-                      np.issubdtype(dtype, np.integer))
+    dtype_str_same_integer = (
+        isinstance(dtype, str)
+        and dtype == "same"
+        and np.issubdtype(dat.dtype, np.integer)
+    )
+    dtype_interger = not isinstance(dtype, str) and np.issubdtype(dtype, np.integer)
 
     if dtype_str_same_integer or dtype_interger:
         raise ValueError(
-            "Linear interpolation requires float dtype, change the "
-            "dtype argument."
-            )
+            "Linear interpolation requires float dtype, change the " "dtype argument."
+        )
 
     if np.issubdtype(dat.dtype, np.integer):
         # The _linear_bin function below requires a float dtype
@@ -332,7 +335,6 @@ def _linear_bin(dat, scale, crop=True, dtype=None):
     return result
 
 
-
 def numba_histogram(data, bins, ranges):
     """
     Parameters
@@ -355,7 +357,7 @@ def numba_histogram(data, bins, ranges):
     return _numba_histogram(data, bins, ranges)
 
 
-@njit(cache=True)
+@jit_ifnumba(cache=True)
 def _numba_histogram(data, bins, ranges):
     """
     Numba histogram computation requiring native endian datatype.
@@ -408,7 +410,7 @@ def get_signal_chunk_slice(index, chunks):
     raise ValueError("Index out of signal range.")
 
 
-@njit(cache=True)
+@jit_ifnumba(cache=True)
 def numba_closest_index_round(axis_array, value_array):
     """For each value in value_array, find the closest value in axis_array and
     return the result as a numpy array of the same shape as value_array.
@@ -430,11 +432,13 @@ def numba_closest_index_round(axis_array, value_array):
     rtol = 1e-12
     machineepsilon = np.min(np.abs(np.diff(axis_array))) * rtol
     for i, v in enumerate(value_array.flat):
-        index_array.flat[i] = np.abs(axis_array - v + np.sign(v) * machineepsilon).argmin()
+        index_array.flat[i] = np.abs(
+            axis_array - v + np.sign(v) * machineepsilon
+        ).argmin()
     return index_array
 
 
-@njit(cache=True)
+@jit_ifnumba(cache=True)
 def numba_closest_index_floor(axis_array, value_array):  # pragma: no cover
     """For each value in value_array, find the closest smaller value in
     axis_array and return the result as a numpy array of the same shape
@@ -460,7 +464,7 @@ def numba_closest_index_floor(axis_array, value_array):  # pragma: no cover
     return index_array
 
 
-@njit(cache=True)
+@jit_ifnumba(cache=True)
 def numba_closest_index_ceil(axis_array, value_array):  # pragma: no cover
     """For each value in value_array, find the closest larger value in
     axis_array and return the result as a numpy array of the same shape
@@ -485,7 +489,7 @@ def numba_closest_index_ceil(axis_array, value_array):  # pragma: no cover
     return index_array
 
 
-@njit(cache=True)
+@jit_ifnumba(cache=True)
 def round_half_towards_zero(array, decimals=0):  # pragma: no cover
     """
     Round input array using "half towards zero" strategy.
@@ -503,15 +507,67 @@ def round_half_towards_zero(array, decimals=0):  # pragma: no cover
     rounded_array : ndarray
         An array of the same type as a, containing the rounded values.
     """
-    multiplier = 10 ** decimals
+    multiplier = 10**decimals
 
-    return np.where(array >= 0,
-                    np.ceil(array * multiplier - 0.5) / multiplier,
-                    np.floor(array * multiplier + 0.5) / multiplier
-                    )
+    return np.where(
+        array >= 0,
+        np.ceil(array * multiplier - 0.5) / multiplier,
+        np.floor(array * multiplier + 0.5) / multiplier,
+    )
 
 
-@njit(cache=True)
+def get_value_at_index(
+    array,
+    indexes,
+    real_index,
+    factor=1.0,
+    norm=None,
+    minimum_intensity=None,
+    start=None,
+    stop=1.0,
+):
+    """Get the value at the given index.
+
+    Parameters
+    ----------
+    array : 1D numpy array
+        Input array.
+    indexes : list of float
+        Indexes of the array to find the value at.
+    factor: float or 1D numpy array
+        Factor to multiply the value at the index with.
+    norm : str, optional
+        Normalization to apply to the intensities. Can be 'log' or None.
+    minimum_intensity : float, optional
+        Minimum intensity to use when norm is 'log'.
+    start : float, optional
+        Start value for scaling the vertical line
+    stop : float, optional
+        Stop value for scaling the vertical line or height of the point.
+    real_index : 1D numpy array
+        The real values for the indexes in calibrated units.
+    """
+    if norm == "log" and minimum_intensity is None:
+        raise ValueError("minimum_intensity must be provided when norm is log")
+    factor = np.asarray(factor)
+    intensities = array[indexes] * factor
+    stop_intensities = intensities * stop
+    # set minimum_intensity so that zeros are not plotted causing errors
+    if norm == "log":
+        stop_intensities[stop_intensities < minimum_intensity] = minimum_intensity
+    stop_ = np.stack((real_index, stop_intensities), axis=1)
+    if start is not None:  # make lines from start to stop
+        start_intensities = intensities * start
+        # set minimum_intensity so that zeros are not plotted causing errors
+        if norm == "log":
+            start_intensities[start_intensities < minimum_intensity] = minimum_intensity
+        start_ = np.stack((real_index, start_intensities), axis=1)
+        return np.stack((start_, stop_), axis=1)
+    else:
+        return stop_
+
+
+@jit_ifnumba(cache=True)
 def round_half_away_from_zero(array, decimals=0):  # pragma: no cover
     """
     Round input array using "half away from zero" strategy.
@@ -529,9 +585,71 @@ def round_half_away_from_zero(array, decimals=0):  # pragma: no cover
     rounded_array : ndarray
         An array of the same type as a, containing the rounded values.
     """
-    multiplier = 10 ** decimals
+    multiplier = 10**decimals
 
-    return np.where(array >= 0,
-                    np.floor(array * multiplier + 0.5) / multiplier,
-                    np.ceil(array * multiplier - 0.5) / multiplier
-                    )
+    return np.where(
+        array >= 0,
+        np.floor(array * multiplier + 0.5) / multiplier,
+        np.ceil(array * multiplier - 0.5) / multiplier,
+    )
+
+
+def _get_navigation_dimension_chunk_slice(navigation_indices, chunks):
+    """Get the slice necessary to get the dask data chunk containing the
+    navigation indices.
+
+    Parameters
+    ----------
+    navigation_indices : iterable
+    chunks : iterable
+
+    Returns
+    -------
+    chunk_slice : list of slices
+
+    Examples
+    --------
+    Making all the variables
+
+
+    >>> from hyperspy._signals.lazy import _get_navigation_dimension_chunk_slice
+    >>> data = da.random.random((128, 128, 256, 256), chunks=(32, 32, 32, 32))
+    >>> s = hs.signals.Signal2D(data).as_lazy()
+
+    >>> sig_dim = s.axes_manager.signal_dimension
+    >>> nav_chunks = s.data.chunks[:-sig_dim]
+    >>> navigation_indices = s.axes_manager._getitem_tuple[:-sig_dim]
+
+    The navigation index here is (0, 0), giving us the slice which contains
+    this index.
+
+    >>> chunk_slice = _get_navigation_dimension_chunk_slice(navigation_indices, nav_chunks)
+    >>> print(chunk_slice)
+    (slice(0, 32, None), slice(0, 32, None))
+    >>> data_chunk = data[chunk_slice]
+
+    Moving the navigator to a new position, by directly setting the indices.
+    Normally, this is done by moving the navigator while plotting the data.
+    Note the "inversion" of the axes here: the indices is given in (x, y),
+    while the chunk_slice is given in (y, x).
+
+    >>> s.axes_manager.indices = (127, 70)
+    >>> navigation_indices = s.axes_manager._getitem_tuple[:-sig_dim]
+    >>> chunk_slice = _get_navigation_dimension_chunk_slice(navigation_indices, nav_chunks)
+    >>> print(chunk_slice)
+    (slice(64, 96, None), slice(96, 128, None))
+    >>> data_chunk = data[chunk_slice]
+
+    """
+    chunk_slice_list = da.core.slices_from_chunks(chunks)
+    for chunk_slice in chunk_slice_list:
+        is_slice = True
+        for index_nav in range(len(navigation_indices)):
+            temp_slice = chunk_slice[index_nav]
+            nav = navigation_indices[index_nav]
+            if not (temp_slice.start <= nav < temp_slice.stop):
+                is_slice = False
+                break
+        if is_slice:
+            return chunk_slice
+    return False

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -23,41 +23,44 @@ from hyperspy.components1d import Expression
 from hyperspy.signals import Signal1D
 
 DEFAULT_TOL = 2.0
-BASELINE_DIR = 'plot_model1d'
-STYLE_PYTEST_MPL = 'default'
+BASELINE_DIR = "plot_model1d"
+STYLE_PYTEST_MPL = "default"
 
 
 class TestModelPlot:
     def setup_method(self, method):
-        s = Signal1D(np.arange(1000).reshape((10, 100)))
-        np.random.seed(0)
-        s.add_poissonian_noise()
+        s = Signal1D(np.arange(1000, dtype=np.int64).reshape((10, 100)))
+        s.add_poissonian_noise(random_state=0)
         m = s.create_model()
         line = Expression("a * x", name="line", a=1)
         m.append(line)
         self.m = m
 
     @pytest.mark.mpl_image_compare(
-        baseline_dir=BASELINE_DIR, tolerance=DEFAULT_TOL, style=STYLE_PYTEST_MPL)
+        baseline_dir=BASELINE_DIR, tolerance=DEFAULT_TOL, style=STYLE_PYTEST_MPL
+    )
     def test_default_signal_plot(self):
         self.m.plot()
         return self.m._plot.signal_plot.figure
 
     @pytest.mark.mpl_image_compare(
-        baseline_dir=BASELINE_DIR, tolerance=DEFAULT_TOL, style=STYLE_PYTEST_MPL)
+        baseline_dir=BASELINE_DIR, tolerance=DEFAULT_TOL, style=STYLE_PYTEST_MPL
+    )
     def test_plot_components(self):
         self.m.plot(plot_components=True)
         return self.m._plot.signal_plot.figure
 
     @pytest.mark.mpl_image_compare(
-        baseline_dir=BASELINE_DIR, tolerance=DEFAULT_TOL, style=STYLE_PYTEST_MPL)
+        baseline_dir=BASELINE_DIR, tolerance=DEFAULT_TOL, style=STYLE_PYTEST_MPL
+    )
     def test_disable_plot_components(self):
         self.m.plot(plot_components=True)
         self.m.disable_plot_components()
         return self.m._plot.signal_plot.figure
 
     @pytest.mark.mpl_image_compare(
-        baseline_dir=BASELINE_DIR, tolerance=DEFAULT_TOL, style=STYLE_PYTEST_MPL)
+        baseline_dir=BASELINE_DIR, tolerance=DEFAULT_TOL, style=STYLE_PYTEST_MPL
+    )
     def test_default_navigator_plot(self):
         self.m.plot()
         return self.m._plot.navigator_plot.figure
@@ -65,3 +68,6 @@ class TestModelPlot:
     def test_no_navigator(self):
         self.m.plot(navigator=None)
         assert self.m.signal._plot.navigator_plot is None
+
+    def test_plot_residual(self):
+        self.m.plot(plot_residual=True)

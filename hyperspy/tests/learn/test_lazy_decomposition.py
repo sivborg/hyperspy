@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -19,7 +19,6 @@
 import numpy as np
 import pytest
 
-from hyperspy.exceptions import VisibleDeprecationWarning
 from hyperspy.misc.machine_learning.import_sklearn import sklearn_installed
 from hyperspy.signals import Signal1D
 
@@ -110,9 +109,7 @@ class TestLazyDecomposition:
         s = self.s
         sig_mask = (s.inav[0, 0].data < 1.0).compute()
 
-        s.decomposition(output_dimension=3,
-                        algorithm="PCA",
-                        signal_mask=sig_mask)
+        s.decomposition(output_dimension=3, algorithm="PCA", signal_mask=sig_mask)
         factors = s.learning_results.factors
         loadings = s.learning_results.loadings
         _ = loadings @ factors.T
@@ -126,9 +123,7 @@ class TestLazyDecomposition:
 
         nav_mask = (s.isig[0].data < 1.0).compute()
 
-        s.decomposition(output_dimension=3,
-                        algorithm="PCA",
-                        navigation_mask=nav_mask)
+        s.decomposition(output_dimension=3, algorithm="PCA", navigation_mask=nav_mask)
         factors = s.learning_results.factors
         loadings = s.learning_results.loadings
         _ = loadings @ factors.T
@@ -139,7 +134,6 @@ class TestLazyDecomposition:
         np.testing.assert_allclose(
             explained_variance_norm[: self.rank].sum(), 1.0, atol=1e-6
         )
-
 
     @pytest.mark.parametrize("normalize_poissonian_noise", [True, False])
     def test_orpca(self, normalize_poissonian_noise):
@@ -199,21 +193,6 @@ class TestLazyDecomposition:
         with pytest.raises(ValueError, match="'algorithm' not recognised"):
             self.s.decomposition(algorithm="random")
 
-    def test_bounds_warning(self):
-        with pytest.warns(
-            VisibleDeprecationWarning, match="`bounds` keyword is deprecated"
-        ):
-            self.s.decomposition(bounds=True)
-
-    @pytest.mark.skipif(not sklearn_installed, reason="sklearn not installed")
-    @pytest.mark.parametrize("algorithm", ["ONMF"])
-    def test_deprecated_algorithms_warning(self, algorithm):
-        with pytest.warns(
-            VisibleDeprecationWarning,
-            match="`algorithm='{}'` has been deprecated".format(algorithm),
-        ):
-            self.s.decomposition(output_dimension=3, algorithm=algorithm)
-
 
 class TestPrintInfo:
     def setup_method(self, method):
@@ -255,8 +234,8 @@ class TestPrintInfo:
         s = self.s
         sig_mask = (s.inav[0].data < 0.5).compute()[:-2]
         with pytest.raises(ValueError):
-            s.decomposition(algorithm='PCA', signal_mask=sig_mask)
+            s.decomposition(algorithm="PCA", signal_mask=sig_mask)
 
         nav_mask = (s.isig[0].data < 0.5).compute()[:-2]
         with pytest.raises(ValueError):
-            s.decomposition(algorithm='PCA', navigation_mask=nav_mask)
+            s.decomposition(algorithm="PCA", navigation_mask=nav_mask)

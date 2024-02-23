@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2022 The HyperSpy developers
+# Copyright 2007-2023 The HyperSpy developers
 #
 # This file is part of HyperSpy.
 #
@@ -36,7 +36,9 @@ class CommonSignal1D:
 
         See Also
         --------
-        transpose, as_signal1D, as_signal2D, hs.transpose
+        hyperspy.api.signals.BaseSignal.as_signal2D,
+        hyperspy.api.signals.BaseSignal.transpose,
+        hyperspy.api.transpose
 
         Raises
         ------
@@ -47,9 +49,12 @@ class CommonSignal1D:
         """
         if self.data.ndim < 2:
             raise DataDimensionError(
-                "A Signal dimension must be >= 2 to be converted to Signal2D")
+                "A Signal dimension must be >= 2 to be converted to Signal2D"
+            )
         nat = self.axes_manager._get_axes_in_natural_order()
-        im = self.transpose(signal_axes=nat[:2], navigation_axes=nat[2:],
-                            optimize=optimize)
+        im = self.transpose(
+            signal_axes=nat[:2], navigation_axes=nat[2:], optimize=optimize
+        )
         return im
-    to_signal2D.__doc__ %= (OPTIMIZE_ARG.replace('False', 'True'))
+
+    to_signal2D.__doc__ %= OPTIMIZE_ARG.replace("False", "True")
